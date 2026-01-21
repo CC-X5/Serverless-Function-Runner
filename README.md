@@ -3,7 +3,7 @@
 Eine cloud-native Function-as-a-Service (FaaS) Plattform zur Ausführung von Java-Funktionen in isolierten Docker-Containern. Entwickelt im Rahmen der Vorlesung **Cloud Native Software Engineering** an der Hochschule Kaiserslautern.
 
 ![Java](https://img.shields.io/badge/Java-17-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.0.0-green)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.4-green)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-blue)
 ![Kubernetes](https://img.shields.io/badge/Minikube-Ready-blue)
 ![GCR](https://img.shields.io/badge/Google%20Cloud%20Run-Ready-blue)
@@ -117,7 +117,7 @@ Das Projekt konzentriert sich auf **3 Kernfeatures**:
 | Komponente | Technologie |
 |------------|-------------|
 | **Sprache** | Java 17 |
-| **Framework** | Spring Boot 4.0.0, Spring Cloud 2024.0.0 |
+| **Framework** | Spring Boot 3.4.4, Spring Cloud 2024.0.0 |
 | **API Gateway** | Spring Cloud Gateway |
 | **Datenbank** | PostgreSQL 16 |
 | **Object Storage** | MinIO |
@@ -145,21 +145,11 @@ Das Projekt konzentriert sich auf **3 Kernfeatures**:
 git clone https://github.com/CC-X5/Serverless-Function-Runner.git
 cd Serverless-Function-Runner/serverless
 
-# Infrastruktur starten (PostgreSQL, MinIO, RabbitMQ)
+# Komplettes System starten
 docker-compose up -d
 
-# Services bauen und starten
-mvn clean install -DskipTests
-mvn spring-boot:run -pl registry-service &
-mvn spring-boot:run -pl executor-service &
-mvn spring-boot:run -pl gateway-service &
-```
-
-### Oder alles mit Docker Compose
-
-```bash
-# Komplettes System starten
-docker-compose --profile all up --build
+# Status prüfen (alle Services sollten "healthy" sein)
+docker-compose ps
 ```
 
 ### Health Check
@@ -174,6 +164,49 @@ curl http://localhost:8080/actuator/health
 # Executor Health
 curl http://localhost:8081/actuator/health
 ```
+
+### Demo: Function Registration & Upload
+
+```bash
+# 1. Function registrieren
+curl -X POST http://localhost:8082/api/v1/functions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "hello-world",
+    "handler": "hskl.cn.serverless.function.HelloFunction::handle",
+    "runtime": "java17",
+    "timeout": 30,
+    "memory": 256
+  }'
+
+# 2. JAR hochladen (ID aus Response von Schritt 1 verwenden)
+curl -X POST http://localhost:8082/api/v1/functions/{ID}/jar \
+  -F "file=@../test-function/target/hello-function-1.0.0.jar"
+
+# 3. Alle Functions auflisten
+curl http://localhost:8082/api/v1/functions
+
+# 4. Function ausführen
+curl -X POST http://localhost:8082/api/v1/execute/hello-world \
+  -H "Content-Type: application/json" \
+  -d '{"name": "World"}'
+```
+
+### ⚠️ Hinweis: Docker-in-Docker auf Windows
+
+Die Function-Execution nutzt Docker-in-Docker (der Executor-Container startet weitere Container). Auf **Windows mit Docker Desktop** gibt es eine bekannte Einschränkung:
+
+- Volume-Mounts zwischen verschachtelten Containern funktionieren nicht, da Pfade im Executor-Container (`/tmp/...`) nicht vom Docker Host (Windows) aus zugänglich sind.
+- **Lösung**: Auf einem echten Linux-Server, in WSL2, oder in Kubernetes/Cloud Run funktioniert die Execution problemlos.
+
+**Was auf Windows funktioniert:**
+- ✅ Alle 6 Services starten und sind healthy
+- ✅ Function Registration via REST API
+- ✅ JAR Upload zu MinIO Object Storage
+- ✅ Gateway Routing
+- ✅ Container wird erstellt (nur Volume-Mount schlägt fehl)
+
+**Für Production/Cloud:** Die Kubernetes-Manifeste in `/k8s/` und Cloud Run Deployment umgehen dieses Problem.
 
 ---
 
@@ -197,7 +230,7 @@ Nach dem Start erreichbar unter:
 | `GET` | `/api/v1/functions/{id}` | Funktion nach ID abrufen |
 | `GET` | `/api/v1/functions/name/{name}` | Funktion nach Name abrufen |
 | `DELETE` | `/api/v1/functions/{id}` | Funktion löschen |
-| `POST` | `/api/v1/functions/{id}/upload` | JAR-Datei hochladen |
+| `POST` | `/api/v1/functions/{id}/jar` | JAR-Datei hochladen |
 
 #### Function Execution (Executor Service)
 
@@ -237,7 +270,7 @@ curl -X POST http://localhost:8082/api/v1/functions \
 #### 2. JAR-Datei hochladen
 
 ```bash
-curl -X POST http://localhost:8082/api/v1/functions/{id}/upload \
+curl -X POST http://localhost:8082/api/v1/functions/{id}/jar \
   -F "file=@hello-function.jar"
 ```
 
@@ -269,34 +302,53 @@ curl http://localhost:8082/api/v1/functions
 
 ---
 
-## 📸 Screenshots
+## 📸 Demo & Screenshots
 
-### Swagger UI - API Dokumentation
-*Screenshot: Swagger UI mit allen verfügbaren Endpoints*
+### Getestete Funktionalität (Windows Docker Desktop)
 
-![Swagger UI](docs/screenshots/swagger-ui.png)
+| Feature | Status | Beschreibung |
+|---------|--------|--------------|
+| Services starten | ✅ | Alle 6 Services healthy via `docker-compose up -d` |
+| Function Registration | ✅ | POST `/api/v1/functions` erstellt Function |
+| JAR Upload | ✅ | POST `/api/v1/functions/{id}/jar` speichert in MinIO |
+| Function Listing | ✅ | GET `/api/v1/functions` zeigt alle Functions |
+| Gateway Routing | ✅ | Requests werden korrekt geroutet |
+| Docker Container Creation | ✅ | Executor erstellt Function-Container |
+| Function Execution | ⚠️ | Volume-Mount Issue auf Windows (funktioniert auf Linux/K8s) |
 
-### MinIO Console - Object Storage
-*Screenshot: MinIO Console mit hochgeladenen JAR-Dateien*
+### Beispiel-Output: Function Registration
 
-![MinIO Console](docs/screenshots/minio-console.png)
-
-### Docker Compose - Laufende Services
-*Screenshot: Docker Desktop mit allen laufenden Containern*
-
-![Docker Compose](docs/screenshots/docker-compose.png)
-
-### API Response - Function Execution
 ```json
 {
-  "executionId": "exec-550e8400-e29b-41d4",
-  "functionName": "hello-world",
-  "status": "SUCCESS",
-  "output": "Hello, World!",
-  "executionTimeMs": 145,
-  "timestamp": "2025-01-21T18:30:00Z"
+  "id": "8595a42d-0623-4ad6-a1c4-5cb6087a77df",
+  "name": "hello-world",
+  "handler": "hskl.cn.serverless.function.HelloFunction::handle",
+  "runtime": "java17",
+  "status": "READY",
+  "timeoutSeconds": 30,
+  "memoryMb": 256,
+  "jarPath": "hello-world/hello-function-1.0.0.jar",
+  "jarSize": 3326
 }
 ```
+
+### Beispiel-Output: Docker Compose Status
+
+```
+NAME                  STATUS          PORTS
+serverless-postgres   Up (healthy)    0.0.0.0:5432->5432/tcp
+serverless-minio      Up (healthy)    0.0.0.0:9000-9001->9000-9001/tcp
+serverless-rabbitmq   Up (healthy)    0.0.0.0:5672->5672/tcp, 0.0.0.0:15672->15672/tcp
+serverless-registry   Up (healthy)    0.0.0.0:8080->8080/tcp
+serverless-executor   Up (healthy)    0.0.0.0:8081->8081/tcp
+serverless-gateway    Up (healthy)    0.0.0.0:8082->8082/tcp
+```
+
+### Screenshots (falls vorhanden)
+
+- **Swagger UI**: http://localhost:8080/swagger-ui.html
+- **MinIO Console**: http://localhost:9001 (Login: minioadmin/minioadmin)
+- **RabbitMQ Management**: http://localhost:15672 (Login: guest/guest)
 
 ---
 

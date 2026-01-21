@@ -9,18 +9,21 @@ on:
 env:
   JAVA_VERSION: '17'
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/serverless-runner
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # ============================================
-  # Build and Test
+  # Stage 1: Build and Test
   # ============================================
-  build:
+  build-and-test:
     name: Build & Test
     runs-on: ubuntu-latest
-    
+    defaults:
+      run:
+        working-directory: serverless
+
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
@@ -30,45 +33,206 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
       - name: Build with Maven
-        working-directory: ./serverless
-        run: mvn clean compile -B
+        run: ./mvnw clean compile -B
 
-      - name: Run Tests
-        working-directory: ./serverless
-        run: mvn test -B
+      - name: Run Unit Tests
+        run: ./mvnw test -B
+
+      - name: Package JAR files
+        run: ./mvnw package -DskipTests -B
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-files
+          path: |
+            serverless/*/target/*.jar
+          retention-days: 1
 
   # ============================================
-  # Build Docker Images
+  # Stage 2: Code Quality (Optional)
   # ============================================
-  docker:
-    name: Build Docker Images (${{ matrix.service }})
+  code-quality:
+    name: Code Quality
     runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: serverless
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Run Checkstyle (if configured)
+        run: ./mvnw checkstyle:check -B || echo "Checkstyle not configured, skipping"
+        continue-on-error: true
+
+  # ============================================
+  # Stage 3: Build Docker Images
+  # ============================================
+  docker-build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: serverless
+
+    strategy:
+      matrix:
+        service: [registry-service, executor-service, gateway-service]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Package Application
+        run: ./mvnw package -DskipTests -B
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./serverless
+          file: ./serverless/${{ matrix.service }}/Dockerfile
+          push: false
+          tags: ${{ matrix.service }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ============================================
+  # Stage 4: Integration Test with Docker Compose
+  # ============================================
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: docker-build
+    defaults:
+      run:
+        working-directory: serverless
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Package Application
+        run: ./mvnw package -DskipTests -B
+
+      - name: Start Services with Docker Compose
+        run: |
+          docker-compose up -d --build
+          sleep 30
+
+      - name: Check Service Health
+        run: |
+          echo "Checking Gateway Service..."
+          curl -f http://localhost:8082/actuator/health || exit 1
+          echo "Checking Registry Service..."
+          curl -f http://localhost:8080/actuator/health || exit 1
+          echo "Checking Executor Service..."
+          curl -f http://localhost:8081/actuator/health || exit 1
+
+      - name: Test Function Registration
+        run: |
+          RESPONSE=$(curl -s -X POST http://localhost:8082/api/v1/functions \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "ci-test-function",
+              "handler": "com.example.Handler::handle",
+              "runtime": "java17",
+              "timeout": 30,
+              "memory": 256
+            }')
+          echo "Response: $RESPONSE"
+          echo $RESPONSE | grep -q "ci-test-function" || exit 1
+
+      - name: View Logs on Failure
+        if: failure()
+        run: |
+          docker-compose logs
+
+      - name: Stop Services
+        if: always()
+        run: docker-compose down -v
+
+  # ============================================
+  # Stage 5: Push Docker Images (only on main)
+  # ============================================
+  docker-push:
+    name: Push Docker Images
+    runs-on: ubuntu-latest
+    needs: integration-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    defaults:
+      run:
+        working-directory: serverless
+
     permissions:
       contents: read
       packages: write
 
     strategy:
       matrix:
-        include:
-          - service: registry-service
-            port: 8080
-          - service: executor-service
-            port: 8081
-          - service: gateway-service
-            port: 8082
+        service: [registry-service, executor-service, gateway-service]
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Make Maven Wrapper executable
+        run: chmod +x mvnw
+
+      - name: Package Application
+        run: ./mvnw package -DskipTests -B
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -79,13 +243,12 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}
           tags: |
-            type=ref,event=branch
-            type=sha,prefix=
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+            type=raw,value=latest
 
-      - name: Build and push
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: ./serverless
@@ -97,35 +260,42 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ============================================
-  # Deploy to Google Cloud Run (Optional)
+  # Stage 6: Deploy (placeholder for GCP)
   # ============================================
-  deploy-gcr:
-    name: Deploy to Cloud Run
+  deploy:
+    name: Deploy to Cloud
     runs-on: ubuntu-latest
-    needs: docker
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_TO_GCR == 'true'
-    
+    needs: docker-push
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
     steps:
-      - name: Checkout code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Google Auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          project_id: ${{ vars.GCP_PROJECT_ID }}
-
-      - name: Deploy Gateway Service
+      - name: Deploy Notification
         run: |
-          gcloud run deploy gateway-service \
-            --image ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/gateway-service:latest \
-            --platform managed \
-            --region europe-west1 \
-            --allow-unauthenticated \
-            --set-env-vars "SPRING_PROFILES_ACTIVE=prod"
+          echo "🚀 Deployment triggered for commit: ${{ github.sha }}"
+          echo "Images pushed to ghcr.io"
+          echo ""
+          echo "For Google Cloud Run deployment, configure:"
+          echo "1. Add GCP_PROJECT_ID to repository secrets"
+          echo "2. Add GCP_SA_KEY (Service Account JSON) to repository secrets"
+          echo "3. Uncomment the GCP deployment steps below"
+
+      # Uncomment for actual GCP deployment:
+      # - name: Authenticate to Google Cloud
+      #   uses: google-github-actions/auth@v2
+      #   with:
+      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
+      #
+      # - name: Set up Cloud SDK
+      #   uses: google-github-actions/setup-gcloud@v2
+      #
+      # - name: Deploy to Cloud Run
+      #   run: |
+      #     gcloud run deploy gateway-service \
+      #       --image ${{ env.REGISTRY }}/${{ github.repository_owner }}/gateway-service:latest \
+      #       --platform managed \
+      #       --region europe-west1 \
+      #       --allow-unauthenticated
