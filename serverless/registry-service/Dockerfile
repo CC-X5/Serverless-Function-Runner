@@ -1,5 +1,9 @@
 FROM eclipse-temurin:17-jdk-alpine AS build
 WORKDIR /app
+
+# Install curl for mvnw
+RUN apk add --no-cache curl
+
 COPY .mvn/ .mvn/
 COPY mvnw pom.xml ./
 COPY registry-service/pom.xml registry-service/
