@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: serverless-config
+  namespace: serverless
+  labels:
+    app.kubernetes.io/part-of: serverless-platform
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  POSTGRES_HOST: "postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "serverless"
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "functions"
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  REGISTRY_SERVICE_URL: "http://registry-service:8080"
+  EXECUTOR_SERVICE_URL: "http://executor-service:8081"

@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: executor-service
+  namespace: serverless
+  labels:
+    app: executor-service
+    app.kubernetes.io/part-of: serverless-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: executor-service
+  template:
+    metadata:
+      labels:
+        app: executor-service
+    spec:
+      containers:
+        - name: executor-service
+          image: executor-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: serverless-config
+            - secretRef:
+                name: serverless-secrets
+          env:
+            - name: SERVER_PORT
+              value: "8081"
+            - name: DOCKER_HOST
+              value: "unix:///var/run/docker.sock"
+          volumeMounts:
+            - name: docker-socket
+              mountPath: /var/run/docker.sock
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: docker-socket
+          hostPath:
+            path: /var/run/docker.sock
+            type: Socket
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: executor-service
+  namespace: serverless
+spec:
+  selector:
+    app: executor-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+  type: ClusterIP

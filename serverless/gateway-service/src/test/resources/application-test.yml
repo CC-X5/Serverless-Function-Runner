@@ -1,0 +1,13 @@
+# Test configuration for Gateway Service
+spring:
+  cloud:
+    gateway:
+      routes: []  # Empty routes for unit tests
+  main:
+    web-application-type: reactive
+
+# Logging - minimal for tests
+logging:
+  level:
+    root: WARN
+    hskl.cn.serverless: INFO
