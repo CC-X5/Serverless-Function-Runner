@@ -157,7 +157,7 @@ jobs:
 
       - name: Start Services with Docker Compose
         run: |
-          docker-compose up -d --build
+          docker compose up -d --build
           sleep 30
 
       - name: Check Service Health
@@ -186,11 +186,11 @@ jobs:
       - name: View Logs on Failure
         if: failure()
         run: |
-          docker-compose logs
+          docker compose logs
 
       - name: Stop Services
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
 
   # ============================================
   # Stage 5: Push Docker Images (only on main)
