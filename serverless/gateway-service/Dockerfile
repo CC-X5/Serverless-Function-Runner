@@ -1,26 +1,20 @@
-FROM eclipse-temurin:17-jdk-alpine AS build
+FROM maven:3.9-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
-# Install curl for mvnw
-RUN apk add --no-cache curl
-
-# Copy Maven wrapper and parent POM
-COPY .mvn/ .mvn/
-COPY mvnw pom.xml ./
-
-# Copy ALL module POMs (required for parent POM to resolve)
+# Copy parent POM and ALL module POMs (required for parent POM to resolve)
+COPY pom.xml ./
 COPY registry-service/pom.xml registry-service/
 COPY executor-service/pom.xml executor-service/
 COPY gateway-service/pom.xml gateway-service/
 
 # Download dependencies
-RUN ./mvnw dependency:go-offline -pl gateway-service -am -B
+RUN mvn dependency:go-offline -pl gateway-service -am -B || true
 
 # Copy source code for this service only
 COPY gateway-service/src gateway-service/src
 
 # Build this service
-RUN ./mvnw package -pl gateway-service -am -DskipTests -B
+RUN mvn package -pl gateway-service -am -DskipTests -B
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app

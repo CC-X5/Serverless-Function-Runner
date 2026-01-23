@@ -33,7 +33,6 @@ minio:
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: ${MINIO_BUCKET:functions}
 
-# Swagger / OpenAPI Configuration
 springdoc:
   api-docs:
     path: /v3/api-docs

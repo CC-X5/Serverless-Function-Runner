@@ -1,0 +1,39 @@
+steps:
+  # Build Registry Service
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
+      - '-f'
+      - 'registry-service/Dockerfile'
+      - '.'
+
+  # Build Executor Service
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
+      - '-f'
+      - 'executor-service/Dockerfile'
+      - '.'
+
+  # Build Gateway Service
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
+      - '-f'
+      - 'gateway-service/Dockerfile'
+      - '.'
+
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
+
+timeout: 2400s
+options:
+  machineType: 'E2_HIGHCPU_8'
