@@ -19,7 +19,7 @@ Eine cloud-native Function-as-a-Service (FaaS) Plattform zur Ausführung von Jav
 - [Tech Stack](#-tech-stack)
 - [Schnellstart](#-schnellstart)
 - [API-Dokumentation](#-api-dokumentation)
-- [Screenshots](#-screenshots)
+- [Test Functions](#-test-functions)
 - [12-Factor App Compliance](#-12-factor-app-compliance)
 - [Deployment](#-deployment)
 - [CI/CD Pipeline](#-cicd-pipeline)
@@ -165,7 +165,7 @@ curl http://localhost:8080/actuator/health
 curl http://localhost:8081/actuator/health
 ```
 
-### Demo: Function Registration & Upload
+### Demo: Function Registration, Upload & Execution
 
 ```bash
 # 1. Function registrieren
@@ -181,7 +181,7 @@ curl -X POST http://localhost:8082/api/v1/functions \
 
 # 2. JAR hochladen (ID aus Response von Schritt 1 verwenden)
 curl -X POST http://localhost:8082/api/v1/functions/{ID}/jar \
-  -F "file=@../test-function/target/hello-function-1.0.0.jar"
+  -F "file=@test-functions/jars/hello-function.jar"
 
 # 3. Alle Functions auflisten
 curl http://localhost:8082/api/v1/functions
@@ -189,7 +189,7 @@ curl http://localhost:8082/api/v1/functions
 # 4. Function ausführen
 curl -X POST http://localhost:8082/api/v1/execute/hello-world \
   -H "Content-Type: application/json" \
-  -d '{"name": "World"}'
+  -d '{"name": "Peter"}'
 ```
 
 ### ⚠️ Hinweis: Docker-in-Docker auf Windows
@@ -214,10 +214,20 @@ Die Function-Execution nutzt Docker-in-Docker (der Executor-Container startet we
 
 ### Swagger UI
 
-Nach dem Start erreichbar unter:
-- **Gateway**: http://localhost:8082/swagger-ui.html
-- **Registry**: http://localhost:8080/swagger-ui.html
-- **Executor**: http://localhost:8081/swagger-ui.html
+Die interaktive API-Dokumentation ist für den **Registry Service** verfügbar:
+
+| Service | Swagger UI | OpenAPI Spec |
+|---------|------------|--------------|
+| **Registry Service** | http://localhost:8080/swagger-ui.html | http://localhost:8080/v3/api-docs |
+
+> **Hinweis:** Gateway und Executor Service haben keine Swagger UI, da der Gateway nur Routing macht und der Executor intern vom System aufgerufen wird.
+
+### Web UIs
+
+| Service | URL | Zugangsdaten |
+|---------|-----|--------------|
+| **MinIO Console** | http://localhost:9001 | minioadmin / minioadmin |
+| **RabbitMQ Management** | http://localhost:15672 | guest / guest |
 
 ### Endpoints Übersicht
 
@@ -248,7 +258,7 @@ curl -X POST http://localhost:8082/api/v1/functions \
   -H "Content-Type: application/json" \
   -d '{
     "name": "hello-world",
-    "handler": "com.example.HelloFunction::handle",
+    "handler": "hskl.cn.serverless.function.HelloFunction::handle",
     "runtime": "java17",
     "timeout": 30,
     "memory": 256
@@ -260,7 +270,7 @@ curl -X POST http://localhost:8082/api/v1/functions \
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "hello-world",
-  "handler": "com.example.HelloFunction::handle",
+  "handler": "hskl.cn.serverless.function.HelloFunction::handle",
   "runtime": "java17",
   "status": "PENDING",
   "createdAt": "2025-01-21T18:00:00Z"
@@ -298,6 +308,40 @@ curl -X POST http://localhost:8082/api/v1/execute/hello-world \
 
 ```bash
 curl http://localhost:8082/api/v1/functions
+```
+
+---
+
+## 🧪 Test Functions
+
+Im Verzeichnis `serverless/test-functions/` befinden sich vorgefertigte Test-Funktionen:
+
+| Function | Input | Output | Beschreibung |
+|----------|-------|--------|--------------|
+| **HelloFunction** | `{"name": "Peter"}` | `"Hello, Peter!"` | Einfache Begrüßung |
+| **SumFunction** | `{"a": 5, "b": 3}` | `8` | Addition zweier Zahlen |
+| **ReverseFunction** | `{"text": "Cloud"}` | `"duolC"` | String umkehren |
+
+### Test Functions bauen
+
+```bash
+cd serverless/test-functions
+
+# Alle Functions bauen
+./build.sh
+
+# Einzelne Function bauen
+./build.sh hello
+./build.sh sum
+./build.sh reverse
+```
+
+Die fertigen JARs werden in `./jars/` abgelegt.
+
+### Lokales Testen (ohne Server)
+
+```bash
+./test-local.sh all
 ```
 
 ---
@@ -343,12 +387,6 @@ serverless-registry   Up (healthy)    0.0.0.0:8080->8080/tcp
 serverless-executor   Up (healthy)    0.0.0.0:8081->8081/tcp
 serverless-gateway    Up (healthy)    0.0.0.0:8082->8082/tcp
 ```
-
-### Screenshots (falls vorhanden)
-
-- **Swagger UI**: http://localhost:8080/swagger-ui.html
-- **MinIO Console**: http://localhost:9001 (Login: minioadmin/minioadmin)
-- **RabbitMQ Management**: http://localhost:15672 (Login: guest/guest)
 
 ---
 
@@ -605,11 +643,23 @@ serverless/
 │   └── src/main/resources/
 │       └── application.yml
 │
+├── test-functions/           # Vorgefertigte Test-Funktionen
+│   ├── helloF/               # Hello Function
+│   ├── sumF/                 # Sum Function
+│   ├── reverseF/             # Reverse Function
+│   ├── build.sh              # Build Script
+│   └── jars/                 # Kompilierte JARs
+│
 ├── k8s/                      # Kubernetes Manifeste
-│   ├── gateway-deployment.yaml
-│   ├── registry-deployment.yaml
-│   ├── executor-deployment.yaml
-│   └── infrastructure/
+│   ├── 00-namespace.yaml
+│   ├── 01-configmap.yaml
+│   ├── 02-secrets.yaml
+│   ├── 10-postgres.yaml
+│   ├── 11-minio.yaml
+│   ├── 12-rabbitmq.yaml
+│   ├── 20-registry-service.yaml
+│   ├── 21-executor-service.yaml
+│   └── 22-gateway-service.yaml
 │
 ├── docker-compose.yml        # Lokale Entwicklung
 ├── pom.xml                   # Parent POM

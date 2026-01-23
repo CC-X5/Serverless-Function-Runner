@@ -4,16 +4,21 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>hskl.cn.serverless</groupId>
-    <artifactId>hello-function</artifactId>
+    <parent>
+        <groupId>hskl.cn.serverless</groupId>
+        <artifactId>test-functions-parent</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>reverse-function</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
+    
+    <n>Reverse Function</n>
+    <description>Reverses a string</description>
 
     <properties>
-        <java.version>17</java.version>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <function.class>hskl.cn.serverless.function.ReverseFunction</function.class>
     </properties>
 
     <build>
@@ -21,13 +26,17 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>3.3.0</version>
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>hskl.cn.serverless.function.HelloFunction</mainClass>
+                            <mainClass>${function.class}</mainClass>
                         </manifest>
+                        <manifestEntries>
+                            <Function-Class>${function.class}</Function-Class>
+                            <Function-Handler>handle</Function-Handler>
+                        </manifestEntries>
                     </archive>
+                    <finalName>reverse-function</finalName>
                 </configuration>
             </plugin>
         </plugins>

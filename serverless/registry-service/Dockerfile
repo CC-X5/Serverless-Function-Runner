@@ -1,19 +1,19 @@
 FROM maven:3.9-eclipse-temurin-17-alpine AS build
 WORKDIR /app
 
-# Copy parent POM and ALL module POMs (required for parent POM to resolve)
+
 COPY pom.xml ./
 COPY registry-service/pom.xml registry-service/
 COPY executor-service/pom.xml executor-service/
 COPY gateway-service/pom.xml gateway-service/
 
-# Download dependencies
+
 RUN mvn dependency:go-offline -pl registry-service -am -B || true
 
-# Copy source code for this service only
+
 COPY registry-service/src registry-service/src
 
-# Build this service
+
 RUN mvn package -pl registry-service -am -DskipTests -B
 
 FROM eclipse-temurin:17-jre-alpine
