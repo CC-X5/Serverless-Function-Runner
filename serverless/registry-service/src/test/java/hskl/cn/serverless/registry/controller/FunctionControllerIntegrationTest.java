@@ -53,7 +53,7 @@ class FunctionControllerIntegrationTest {
         functionRepository.deleteAll();
     }
 
-    // Helper method to create Function without Lombok builder
+
     private Function createFunction(String name, String runtime, String handler, FunctionStatus status) {
         Function f = new Function();
         f.setName(name);
@@ -72,7 +72,7 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should create function with valid request")
         void shouldCreateFunction() throws Exception {
-            // Given
+
             CreateFunctionRequest request = CreateFunctionRequest.builder()
                     .name("test-function")
                     .runtime("java17")
@@ -82,12 +82,12 @@ class FunctionControllerIntegrationTest {
                     .memoryMb(256)
                     .build();
 
-            // When
+
             ResultActions result = mockMvc.perform(post("/api/v1/functions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)));
 
-            // Then
+
             result.andExpect(status().isCreated())
                     .andExpect(jsonPath("$.id").exists())
                     .andExpect(jsonPath("$.name").value("test-function"))
@@ -99,14 +99,14 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return 400 for invalid handler format")
         void shouldReturn400ForInvalidHandler() throws Exception {
-            // Given
+
             CreateFunctionRequest request = CreateFunctionRequest.builder()
                     .name("test-function")
                     .runtime("java17")
-                    .handler("invalid-handler")  // Missing ::methodName
+                    .handler("invalid-handler")
                     .build();
 
-            // When/Then
+
             mockMvc.perform(post("/api/v1/functions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -117,10 +117,10 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return 400 for missing required fields")
         void shouldReturn400ForMissingFields() throws Exception {
-            // Given
+
             String invalidJson = "{}";
 
-            // When/Then
+
             mockMvc.perform(post("/api/v1/functions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(invalidJson))
@@ -130,7 +130,7 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return 409 for duplicate function name")
         void shouldReturn409ForDuplicateName() throws Exception {
-            // Given
+
             Function existing = createFunction("existing-function", "java17", 
                     "com.example.Handler::handle", FunctionStatus.PENDING);
             functionRepository.save(existing);
@@ -141,7 +141,7 @@ class FunctionControllerIntegrationTest {
                     .handler("com.example.Handler2::handle")
                     .build();
 
-            // When/Then
+
             mockMvc.perform(post("/api/v1/functions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsString(request)))
@@ -157,11 +157,10 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return all functions")
         void shouldReturnAllFunctions() throws Exception {
-            // Given
+
             Function function1 = createAndSaveFunction("function-1");
             Function function2 = createAndSaveFunction("function-2");
 
-            // When/Then
             mockMvc.perform(get("/api/v1/functions"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$", hasSize(2)))
@@ -184,10 +183,9 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return function by id")
         void shouldReturnFunctionById() throws Exception {
-            // Given
             Function function = createAndSaveFunction("test-function");
 
-            // When/Then
+
             mockMvc.perform(get("/api/v1/functions/{id}", function.getId()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(function.getId().toString()))
@@ -209,10 +207,9 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should return function by name")
         void shouldReturnFunctionByName() throws Exception {
-            // Given
             createAndSaveFunction("my-function");
 
-            // When/Then
+
             mockMvc.perform(get("/api/v1/functions/name/{name}", "my-function"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.name").value("my-function"));
@@ -233,14 +230,11 @@ class FunctionControllerIntegrationTest {
         @Test
         @DisplayName("should delete function")
         void shouldDeleteFunction() throws Exception {
-            // Given
             Function function = createAndSaveFunction("to-delete");
 
-            // When/Then
             mockMvc.perform(delete("/api/v1/functions/{id}", function.getId()))
                     .andExpect(status().isNoContent());
 
-            // Verify deleted
             mockMvc.perform(get("/api/v1/functions/{id}", function.getId()))
                     .andExpect(status().isNotFound());
         }
@@ -252,8 +246,6 @@ class FunctionControllerIntegrationTest {
                     .andExpect(status().isNotFound());
         }
     }
-
-    // Helper method to create and save a function
     private Function createAndSaveFunction(String name) {
         Function function = createFunction(name, "java17", "com.example.Handler::handle", FunctionStatus.PENDING);
         return functionRepository.save(function);

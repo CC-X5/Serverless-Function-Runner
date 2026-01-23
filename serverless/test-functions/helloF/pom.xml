@@ -13,31 +13,35 @@
     <artifactId>hello-function</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
-    
-    <name>Hello Function</name>
-    <description>Simple greeting function</description>
 
-    <properties>
-        <function.class>hskl.cn.serverless.function.HelloFunction</function.class>
-    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+            <version>2.10.1</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <configuration>
-                    <archive>
-                        <manifest>
-                            <mainClass>${function.class}</mainClass>
-                        </manifest>
-                        <manifestEntries>
-                            <Function-Class>${function.class}</Function-Class>
-                            <Function-Handler>handle</Function-Handler>
-                        </manifestEntries>
-                    </archive>
-                    <finalName>hello-function</finalName>
-                </configuration>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals><goal>shade</goal></goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>hskl.cn.serverless.function.HelloFunction</mainClass>
+                                </transformer>
+                            </transformers>
+                            <finalName>hello-function</finalName>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

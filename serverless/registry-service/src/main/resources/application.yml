@@ -1,9 +1,14 @@
 server:
   port: 8080
+  # 12-Factor: Disposability - Graceful shutdown
+  shutdown: graceful
 
 spring:
   application:
     name: registry-service
+  # 12-Factor: Disposability - Graceful shutdown timeout
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/serverless}
     username: ${DATABASE_USER:postgres}
@@ -27,31 +32,42 @@ spring:
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
+# 12-Factor: Backing Services - MinIO as attached resource
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: ${MINIO_BUCKET:functions}
 
+# OpenAPI / Swagger UI Configuration
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
     operationsSorter: method
+    tagsSorter: alpha
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,env
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
 
+# 12-Factor: Logs - Treat logs as event streams
 logging:
   level:
     root: INFO
     hskl.cn.serverless: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} level=%level service=${spring.application.name} thread=%thread logger=%logger{36} msg=\"%msg\"%n"

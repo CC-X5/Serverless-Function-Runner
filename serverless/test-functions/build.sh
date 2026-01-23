@@ -1,54 +1,61 @@
 #!/bin/bash
-# Build script for test functions
-# Usage: ./build.sh [all|hello|sum|reverse]
+# =============================================================================
+# Build Script für Test-Functions
+# =============================================================================
+# Baut alle Test-Funktionen und kopiert die JARs in den jars/ Ordner
+# 
+# Verwendung:
+#   cd serverless/test-functions
+#   ./build.sh
+# =============================================================================
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="$SCRIPT_DIR/jars"
+cd "$SCRIPT_DIR"
 
-# Create output directory
-mkdir -p "$OUTPUT_DIR"
+echo "=========================================="
+echo "  Building Test Functions"
+echo "=========================================="
 
-build_function() {
-    local func_dir=$1
-    local func_name=$2
-    
-    echo "🔨 Building $func_name..."
-    cd "$SCRIPT_DIR/$func_dir"
-    mvn clean package -q -DskipTests
-    cp target/*.jar "$OUTPUT_DIR/"
-    echo "✅ $func_name built successfully"
-}
+# Farben für Output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-build_all() {
-    echo "🚀 Building all test functions..."
-    cd "$SCRIPT_DIR"
-    mvn clean package -q -DskipTests
-    
-    # Copy all JARs to output directory
-    find . -name "*.jar" -path "*/target/*" -exec cp {} "$OUTPUT_DIR/" \;
-    
-    echo ""
-    echo "✅ All functions built! JARs available in: $OUTPUT_DIR"
-    ls -la "$OUTPUT_DIR"
-}
+# Prüfen ob Maven installiert ist
+if ! command -v mvn &> /dev/null; then
+    echo -e "${RED}ERROR: Maven ist nicht installiert!${NC}"
+    echo "Bitte installiere Maven: https://maven.apache.org/install.html"
+    exit 1
+fi
 
-case "${1:-all}" in
-    hello)
-        build_function "helloF" "HelloFunction"
-        ;;
-    sum)
-        build_function "sumF" "SumFunction"
-        ;;
-    reverse)
-        build_function "reverseF" "ReverseFunction"
-        ;;
-    all)
-        build_all
-        ;;
-    *)
-        echo "Usage: $0 [all|hello|sum|reverse]"
-        exit 1
-        ;;
-esac
+# Alte Builds löschen
+echo -e "${YELLOW}Lösche alte target Ordner...${NC}"
+rm -rf helloF/target reverseF/target sumF/target
+
+# Maven Build
+echo -e "${YELLOW}Baue alle Test-Functions...${NC}"
+mvn clean package -q
+
+# JARs kopieren
+echo -e "${YELLOW}Kopiere JARs nach jars/...${NC}"
+mkdir -p jars
+
+cp helloF/target/hello-function.jar jars/
+cp reverseF/target/reverse-function.jar jars/
+cp sumF/target/sum-function.jar jars/
+
+# Erfolg
+echo ""
+echo -e "${GREEN}=========================================="
+echo "  Build erfolgreich!"
+echo "==========================================${NC}"
+echo ""
+echo "Erstellte JARs:"
+ls -lh jars/*.jar
+echo ""
+echo "Nächste Schritte:"
+echo "  1. cd .."
+echo "  2. Functions erstellen und JARs hochladen (siehe docs/TESTING.md)"

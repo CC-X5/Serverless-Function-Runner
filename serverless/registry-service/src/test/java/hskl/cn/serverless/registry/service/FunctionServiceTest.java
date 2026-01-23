@@ -27,10 +27,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for FunctionService.
- * Tests all CRUD operations and business logic.
- */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FunctionService Tests")
 class FunctionServiceTest {
@@ -63,7 +59,7 @@ class FunctionServiceTest {
                 .build();
     }
 
-    // Helper method to create Function without using Lombok builder in tests
+
     private Function createTestFunction(UUID id, String name, FunctionStatus status) {
         Function f = new Function();
         f.setId(id);

@@ -1,4 +1,9 @@
+
+
 services:
+  # ---------------------------------------------------------------------------
+  # Backing Services
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: serverless-postgres
@@ -17,6 +22,13 @@ services:
       retries: 5
     networks:
       - serverless-network
+    # Resource Limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   minio:
     image: minio/minio:latest
@@ -37,6 +49,12 @@ services:
       retries: 5
     networks:
       - serverless-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
@@ -56,13 +74,23 @@ services:
       retries: 5
     networks:
       - serverless-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
+  # ---------------------------------------------------------------------------
+  # Application Services
+  # ---------------------------------------------------------------------------
   registry-service:
     build:
       context: .
       dockerfile: registry-service/Dockerfile
     container_name: serverless-registry
     environment:
+      # 12-Factor: Config via environment variables
       DATABASE_URL: jdbc:postgresql://postgres:5432/serverless
       DATABASE_USER: postgres
       DATABASE_PASSWORD: postgres
@@ -70,6 +98,8 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       RABBITMQ_HOST: rabbitmq
+      # Java options for container environment
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
     ports:
       - "8080:8080"
     depends_on:
@@ -79,8 +109,20 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - serverless-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
 
   executor-service:
     build:
@@ -88,6 +130,7 @@ services:
       dockerfile: executor-service/Dockerfile
     container_name: serverless-executor
     environment:
+      # 12-Factor: Config via environment variables
       REGISTRY_SERVICE_URL: http://registry-service:8080
       RABBITMQ_HOST: rabbitmq
       DOCKER_HOST: tcp://host.docker.internal:2375
@@ -95,16 +138,31 @@ services:
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET: functions
+      # Java options for container environment
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
     ports:
       - "8081:8081"
     volumes:
+      # Docker-in-Docker: Access to host Docker daemon
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - registry-service
       - rabbitmq
       - minio
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - serverless-network
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 384M
 
   gateway-service:
     build:
@@ -112,15 +170,30 @@ services:
       dockerfile: gateway-service/Dockerfile
     container_name: serverless-gateway
     environment:
+      # 12-Factor: Config via environment variables
       REGISTRY_SERVICE_URL: http://registry-service:8080
       EXECUTOR_SERVICE_URL: http://executor-service:8081
+      # Java options for container environment
+      JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
     ports:
       - "8082:8082"
     depends_on:
       - registry-service
       - executor-service
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - serverless-network
+    deploy:
+      resources:
+        limits:
+          memory: 384M
+        reservations:
+          memory: 192M
 
 networks:
   serverless-network:

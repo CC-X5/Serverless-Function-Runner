@@ -4,10 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.async.ResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.command.CopyArchiveToContainerCmd;
 import com.github.dockerjava.api.model.Frame;
 import com.github.dockerjava.api.model.HostConfig;
-import com.github.dockerjava.api.model.Volume;
 import hskl.cn.serverless.executor.config.DockerConfig;
 import hskl.cn.serverless.executor.dto.ExecutionRequest;
 import hskl.cn.serverless.executor.dto.ExecutionResponse;
@@ -18,11 +17,12 @@ import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.Closeable;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,6 +32,13 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Executes serverless functions in isolated Docker containers.
+ * 
+ * This service downloads JAR files from MinIO and uses Docker's copy-to-container
+ * API to transfer the JAR into a newly created container. This approach avoids
+ * the volume mount path issues that occur in Docker-in-Docker scenarios.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -46,6 +53,17 @@ public class DockerExecutionService {
     @Value("${minio.bucket:functions}")
     private String minioBucket;
 
+    /**
+     * Executes a function in an isolated Docker container.
+     * 
+     * The execution flow:
+     * 1. Validate function exists and is ready
+     * 2. Download JAR from MinIO
+     * 3. Create container (without starting)
+     * 4. Copy JAR into container using Docker API
+     * 5. Start container and capture output
+     * 6. Cleanup container and temp files
+     */
     public ExecutionResponse execute(ExecutionRequest request) {
         String executionId = UUID.randomUUID().toString();
         LocalDateTime startedAt = LocalDateTime.now();
@@ -71,16 +89,15 @@ public class DockerExecutionService {
 
             String payloadJson = objectMapper.writeValueAsString(request.getPayload());
 
-            // Create container with volume mount for the JAR
+            // Create container WITHOUT volume mounts - we'll copy the JAR in
             CreateContainerResponse container = dockerClient.createContainerCmd(dockerConfig.getRuntimeImage())
                     .withName("fn-" + executionId)
                     .withCmd("java", "-jar", "/app/function.jar", payloadJson)
                     .withHostConfig(HostConfig.newHostConfig()
                             .withMemory((long) function.getMemoryMb() * 1024 * 1024)
                             .withCpuCount(1L)
-                            .withNetworkMode("none")
-                            .withBinds(new Bind(tempJarPath.toAbsolutePath().toString(), 
-                                    new Volume("/app/function.jar"))))
+                            .withNetworkMode("none"))
+                    .withWorkingDir("/app")
                     .withLabels(java.util.Map.of(
                             "function", function.getName(),
                             "execution-id", executionId
@@ -90,6 +107,11 @@ public class DockerExecutionService {
             containerId = container.getId();
             log.info("Created container: {}", containerId);
 
+            // Copy JAR into container using Docker API (works in Docker-in-Docker!)
+            copyFileToContainer(containerId, tempJarPath, "/app/function.jar");
+            log.info("Copied JAR into container");
+
+            // Now start the container
             dockerClient.startContainerCmd(containerId).exec();
 
             StringBuilder output = new StringBuilder();
@@ -110,6 +132,7 @@ public class DockerExecutionService {
 
                         @Override
                         public void onError(Throwable throwable) {
+                            log.error("Error reading container logs", throwable);
                             latch.countDown();
                         }
 
@@ -193,6 +216,9 @@ public class DockerExecutionService {
         }
     }
 
+    /**
+     * Downloads a JAR file from MinIO to a temporary location.
+     */
     private Path downloadJarFromMinio(String jarPath, String executionId) throws Exception {
         Path tempDir = Files.createTempDirectory("fn-" + executionId);
         Path tempJarPath = tempDir.resolve("function.jar");
@@ -206,5 +232,45 @@ public class DockerExecutionService {
         }
 
         return tempJarPath;
+    }
+
+    /**
+     * Copies a file into a Docker container using the Docker API.
+     * 
+     * This method creates a TAR archive containing the file and uses
+     * Docker's copyArchiveToContainer API to transfer it. This approach
+     * works reliably in Docker-in-Docker scenarios where volume mounts
+     * would fail due to path resolution issues.
+     */
+    private void copyFileToContainer(String containerId, Path sourceFile, String destPath) throws Exception {
+        // Docker API requires TAR format for copying files
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (TarArchiveOutputStream tarOut = new TarArchiveOutputStream(baos)) {
+            tarOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
+            
+            // Extract just the filename from destPath
+            String fileName = destPath.substring(destPath.lastIndexOf('/') + 1);
+            
+            TarArchiveEntry entry = new TarArchiveEntry(sourceFile.toFile(), fileName);
+            entry.setSize(Files.size(sourceFile));
+            tarOut.putArchiveEntry(entry);
+            Files.copy(sourceFile, tarOut);
+            tarOut.closeArchiveEntry();
+            tarOut.finish();
+        }
+
+        // Extract directory from destPath
+        String destDir = destPath.substring(0, destPath.lastIndexOf('/'));
+        if (destDir.isEmpty()) {
+            destDir = "/";
+        }
+
+        // Copy the TAR archive to the container
+        try (InputStream tarInput = new ByteArrayInputStream(baos.toByteArray())) {
+            dockerClient.copyArchiveToContainerCmd(containerId)
+                    .withTarInputStream(tarInput)
+                    .withRemotePath(destDir)
+                    .exec();
+        }
     }
 }

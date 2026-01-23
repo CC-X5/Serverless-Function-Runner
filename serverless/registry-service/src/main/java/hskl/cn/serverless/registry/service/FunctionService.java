@@ -104,4 +104,67 @@ public class FunctionService {
         log.info("Updated function {} status to {}", function.getName(), status);
         return FunctionResponse.from(function);
     }
+
+    /**
+     * Upload JAR by function name.
+     */
+    @Transactional
+    public FunctionResponse uploadJarByName(String name, MultipartFile file) {
+        log.info("Uploading JAR for function: {}", name);
+        Function function = functionRepository.findByName(name)
+                .orElseThrow(() -> FunctionNotFoundException.byName(name));
+        String jarPath = storageService.uploadJar(function.getName(), file);
+        function.setJarPath(jarPath);
+        function.setJarSize(file.getSize());
+        function.setStatus(FunctionStatus.READY);
+        function = functionRepository.save(function);
+        log.info("Function {} is now READY", function.getName());
+        return FunctionResponse.from(function);
+    }
+
+    /**
+     * Update function by name.
+     */
+    @Transactional
+    public FunctionResponse updateFunctionByName(String name, CreateFunctionRequest request) {
+        log.info("Updating function: {}", name);
+        Function function = functionRepository.findByName(name)
+                .orElseThrow(() -> FunctionNotFoundException.byName(name));
+        
+        if (request.getDescription() != null) {
+            function.setDescription(request.getDescription());
+        }
+        if (request.getHandler() != null) {
+            function.setHandler(request.getHandler());
+        }
+        if (request.getTimeoutSeconds() != null) {
+            function.setTimeoutSeconds(request.getTimeoutSeconds());
+        }
+        if (request.getMemoryMb() != null) {
+            function.setMemoryMb(request.getMemoryMb());
+        }
+        
+        function = functionRepository.save(function);
+        log.info("Updated function: {}", function.getName());
+        return FunctionResponse.from(function);
+    }
+
+    /**
+     * Delete function by name.
+     */
+    @Transactional
+    public void deleteFunctionByName(String name) {
+        log.info("Deleting function by name: {}", name);
+        Function function = functionRepository.findByName(name)
+                .orElseThrow(() -> FunctionNotFoundException.byName(name));
+        if (function.getJarPath() != null) {
+            try {
+                storageService.deleteJar(function.getJarPath());
+            } catch (Exception e) {
+                log.warn("Failed to delete JAR for function {}: {}", name, e.getMessage());
+            }
+        }
+        functionRepository.delete(function);
+        log.info("Deleted function: {}", name);
+    }
 }

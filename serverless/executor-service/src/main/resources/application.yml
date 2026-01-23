@@ -1,22 +1,29 @@
 server:
   port: 8081
+  shutdown: graceful
 
 spring:
   application:
     name: executor-service
+
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
+
 services:
   registry:
     url: ${REGISTRY_SERVICE_URL:http://localhost:8080}
 
+
 docker:
   host: ${DOCKER_HOST:unix:///var/run/docker.sock}
   runtime-image: ${DOCKER_RUNTIME_IMAGE:eclipse-temurin:17-jre-alpine}
+
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
@@ -24,18 +31,33 @@ minio:
   secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: ${MINIO_BUCKET:functions}
 
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,env
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
 
 logging:
   level:
     root: INFO
     hskl.cn.serverless: DEBUG
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ} level=%level service=${spring.application.name} thread=%thread logger=%logger{36} msg=\"%msg\"%n"

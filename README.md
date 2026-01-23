@@ -1,131 +1,70 @@
 # 🚀 Serverless Function Runner
 
-Eine cloud-native Function-as-a-Service (FaaS) Plattform zur Ausführung von Java-Funktionen in isolierten Docker-Containern. Entwickelt im Rahmen der Vorlesung **Cloud Native Software Engineering** an der Hochschule Kaiserslautern.
+Eine cloud-native Function-as-a-Service (FaaS) Plattform zur Ausführung von Java-Funktionen in isolierten Docker-Containern.
 
 ![Java](https://img.shields.io/badge/Java-17-orange)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.4-green)
-![Docker](https://img.shields.io/badge/Docker-Enabled-blue)
-![Kubernetes](https://img.shields.io/badge/Minikube-Ready-blue)
-![GCR](https://img.shields.io/badge/Google%20Cloud%20Run-Ready-blue)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-green)
+![Docker](https://img.shields.io/badge/Docker-Ready-blue)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
 ## 📋 Inhaltsverzeichnis
 
-- [Projektübersicht](#-projektübersicht)
 - [Features](#-features)
 - [Architektur](#-architektur)
-- [Tech Stack](#-tech-stack)
 - [Schnellstart](#-schnellstart)
-- [API-Dokumentation](#-api-dokumentation)
 - [Test Functions](#-test-functions)
-- [12-Factor App Compliance](#-12-factor-app-compliance)
+- [API Referenz](#-api-referenz)
 - [Deployment](#-deployment)
-- [CI/CD Pipeline](#-cicd-pipeline)
-- [Security](#-security)
-- [Testing](#-testing)
-
----
-
-## 📖 Projektübersicht
-
-Der **Serverless Function Runner** ist eine FaaS-Plattform, die es ermöglicht, Java-Funktionen als JAR-Dateien hochzuladen und über eine REST-API auszuführen. Die Plattform nutzt Docker-Container für isolierte Ausführung und ist für den Betrieb auf Minikube und Google Cloud Run konzipiert.
-
-### Projektziele
-
-Dieses Projekt demonstriert die Anwendung von **Cloud-Native Konzepten und Best Practices** aus der Vorlesung:
-
-| Anforderung | Umsetzung |
-|-------------|-----------|
-| **12-Factor App** | Alle 12 Faktoren implementiert |
-| **DevProdParity** | Docker Compose lokal = K8s/GCR in Produktion |
-| **Containerisierung** | Multi-Stage Dockerfiles für alle Services |
-| **Orchestrierung** | Minikube / Google Cloud Run |
-| **CI/CD** | GitHub Actions Pipeline |
-| **Security** | Container Isolation, Resource Limits, Non-Root |
+- [Konfiguration](#-konfiguration)
 
 ---
 
 ## ✨ Features
 
-Das Projekt konzentriert sich auf **3 Kernfeatures**:
-
-### 1️⃣ Function Registry & JAR Upload
-- Registrierung von Funktionen mit Metadaten (Name, Handler, Runtime)
-- Upload von JAR-Dateien zu MinIO Object Storage
-- Verwaltung des Function Lifecycle (PENDING → READY → RUNNING)
-
-### 2️⃣ Function Execution
-- Ausführung von Funktionen in isolierten Docker-Containern
-- Synchrone und asynchrone Ausführungsmodi
-- Timeout- und Resource-Management
-
-### 3️⃣ API Gateway
-- Zentraler Einstiegspunkt für alle Requests
-- Request Routing zu Backend-Services
-- Request/Response Logging
+| Feature | Beschreibung |
+|---------|--------------|
+| **Function Registry** | Registrierung & Verwaltung von Funktionen mit Metadaten |
+| **JAR Upload** | Upload von Java-Funktionen als JAR-Dateien zu MinIO |
+| **Isolated Execution** | Ausführung in isolierten Docker-Containern |
+| **API Gateway** | Zentraler Einstiegspunkt mit Routing & Logging |
+| **Health Monitoring** | Spring Actuator Health Endpoints |
 
 ---
 
 ## 🏗️ Architektur
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           Minikube / GCR                                    │
-│                                                                             │
-│  ┌──────────┐     ┌─────────────────────────────────────────────────────┐  │
-│  │  Client  │     │                    Services                          │  │
-│  │  (REST)  │     │                                                     │  │
-│  └────┬─────┘     │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │  │
-│       │           │  │   Gateway   │  │  Registry   │  │  Executor   │  │  │
-│       │           │  │   :8082     │  │   :8080     │  │   :8081     │  │  │
-│       └──────────────▶             │──▶             │  │             │  │  │
-│                   │  └─────────────┘  └──────┬──────┘  └──────┬──────┘  │  │
-│                   │                          │                │         │  │
-│                   └──────────────────────────┼────────────────┼─────────┘  │
-│                                              │                │            │
-│                   ┌──────────────────────────┼────────────────┼─────────┐  │
-│                   │      Backing Services    │                │         │  │
-│                   │                          ▼                ▼         │  │
-│                   │  ┌─────────────┐  ┌─────────────┐  ┌───────────┐   │  │
-│                   │  │  RabbitMQ   │  │ PostgreSQL  │  │   MinIO   │   │  │
-│                   │  │  (Queue)    │  │ (Metadata)  │  │  (JARs)   │   │  │
-│                   │  └─────────────┘  └─────────────┘  └───────────┘   │  │
-│                   └─────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                         Docker Compose                          │
+│                                                                 │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐        │
+│  │   Gateway   │───▶│  Registry   │    │  Executor   │        │
+│  │    :8082    │    │    :8080    │    │    :8081    │        │
+│  └─────────────┘    └──────┬──────┘    └──────┬──────┘        │
+│                            │                  │                │
+│                     ┌──────┴──────┐    ┌──────┴──────┐        │
+│                     │             │    │             │        │
+│  ┌─────────────┐    │  ┌───────┐  │    │  ┌───────┐  │        │
+│  │  RabbitMQ   │    │  │  DB   │  │    │  │ MinIO │  │        │
+│  │   :5672     │    │  │ :5432 │  │    │  │ :9000 │  │        │
+│  └─────────────┘    │  └───────┘  │    │  └───────┘  │        │
+│                     └─────────────┘    └─────────────┘        │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Services
 
-| Service | Port | Beschreibung |
-|---------|------|--------------|
-| **Gateway Service** | 8082 | Spring Cloud Gateway - Routing, Rate Limiting, Logging |
-| **Registry Service** | 8080 | Function CRUD, JAR-Upload, Metadaten-Verwaltung |
-| **Executor Service** | 8081 | Docker-basierte Funktionsausführung |
-
-### Datenfluss
-
-1. **Function Registration**: Client → Gateway → Registry → PostgreSQL + MinIO
-2. **Function Execution**: Client → Gateway → Executor → Docker Container → Response
-
----
-
-## 🛠️ Tech Stack
-
-| Komponente | Technologie |
-|------------|-------------|
-| **Sprache** | Java 17 |
-| **Framework** | Spring Boot 3.4.4, Spring Cloud 2024.0.0 |
-| **API Gateway** | Spring Cloud Gateway |
-| **Datenbank** | PostgreSQL 16 |
-| **Object Storage** | MinIO |
-| **Messaging** | RabbitMQ |
-| **Container** | Docker |
-| **Orchestrierung** | Minikube / Google Cloud Run |
-| **CI/CD** | GitHub Actions |
-| **Dokumentation** | SpringDoc OpenAPI (Swagger UI) |
+| Service | Port | Funktion |
+|---------|------|----------|
+| **Gateway** | 8082 | API Gateway, Request Routing |
+| **Registry** | 8080 | Function CRUD, JAR Upload |
+| **Executor** | 8081 | Docker-basierte Ausführung |
+| **PostgreSQL** | 5432 | Metadaten-Speicher |
+| **MinIO** | 9000/9001 | JAR-Dateien Storage |
+| **RabbitMQ** | 5672/15672 | Message Queue |
 
 ---
 
@@ -133,481 +72,199 @@ Das Projekt konzentriert sich auf **3 Kernfeatures**:
 
 ### Voraussetzungen
 
-- Java 17+
-- Maven 3.8+
 - Docker Desktop
-- (Optional) Kubernetes / Minikube
+- Java 17+ (für lokale Entwicklung)
+- Maven 3.8+ (für lokale Entwicklung)
 
-### Lokale Entwicklung mit Docker Compose
+### 1. System starten
 
 ```bash
-# Repository klonen
-git clone https://github.com/CC-X5/Serverless-Function-Runner.git
-cd Serverless-Function-Runner/serverless
-
-# Komplettes System starten
-docker-compose up -d
-
-# Status prüfen (alle Services sollten "healthy" sein)
-docker-compose ps
+cd serverless
+docker-compose up -d --build
 ```
 
-### Health Check
+### 2. Health Check
 
 ```bash
-# Gateway Health
-curl http://localhost:8082/actuator/health
-
-# Registry Health
 curl http://localhost:8080/actuator/health
-
-# Executor Health
 curl http://localhost:8081/actuator/health
+curl http://localhost:8082/actuator/health
 ```
 
-### Demo: Function Registration, Upload & Execution
+### 3. Function erstellen & ausführen
 
 ```bash
-# 1. Function registrieren
-curl -X POST http://localhost:8082/api/v1/functions \
+# Function registrieren
+curl -X POST http://localhost:8080/api/v1/functions \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "hello-world",
-    "handler": "hskl.cn.serverless.function.HelloFunction::handle",
+    "name": "hello",
     "runtime": "java17",
-    "timeout": 30,
-    "memory": 256
+    "handler": "hskl.cn.serverless.function.HelloFunction::handle",
+    "memoryMb": 256,
+    "timeoutSeconds": 30
   }'
 
-# 2. JAR hochladen (ID aus Response von Schritt 1 verwenden)
-curl -X POST http://localhost:8082/api/v1/functions/{ID}/jar \
+# JAR hochladen
+curl -X POST http://localhost:8080/api/v1/functions/name/hello/upload \
   -F "file=@test-functions/jars/hello-function.jar"
 
-# 3. Alle Functions auflisten
-curl http://localhost:8082/api/v1/functions
-
-# 4. Function ausführen
-curl -X POST http://localhost:8082/api/v1/execute/hello-world \
+# Ausführen
+curl -X POST http://localhost:8081/api/v1/execute \
   -H "Content-Type: application/json" \
-  -d '{"name": "Peter"}'
+  -d '{"functionName": "hello", "payload": {"name": "World"}}'
 ```
 
-### ⚠️ Hinweis: Docker-in-Docker auf Windows
-
-Die Function-Execution nutzt Docker-in-Docker (der Executor-Container startet weitere Container). Auf **Windows mit Docker Desktop** gibt es eine bekannte Einschränkung:
-
-- Volume-Mounts zwischen verschachtelten Containern funktionieren nicht, da Pfade im Executor-Container (`/tmp/...`) nicht vom Docker Host (Windows) aus zugänglich sind.
-- **Lösung**: Auf einem echten Linux-Server, in WSL2, oder in Kubernetes/Cloud Run funktioniert die Execution problemlos.
-
-**Was auf Windows funktioniert:**
-- ✅ Alle 6 Services starten und sind healthy
-- ✅ Function Registration via REST API
-- ✅ JAR Upload zu MinIO Object Storage
-- ✅ Gateway Routing
-- ✅ Container wird erstellt (nur Volume-Mount schlägt fehl)
-
-**Für Production/Cloud:** Die Kubernetes-Manifeste in `/k8s/` und Cloud Run Deployment umgehen dieses Problem.
-
----
-
-## 📡 API-Dokumentation
-
-### Swagger UI
-
-Die interaktive API-Dokumentation ist für den **Registry Service** verfügbar:
-
-| Service | Swagger UI | OpenAPI Spec |
-|---------|------------|--------------|
-| **Registry Service** | http://localhost:8080/swagger-ui.html | http://localhost:8080/v3/api-docs |
-
-> **Hinweis:** Gateway und Executor Service haben keine Swagger UI, da der Gateway nur Routing macht und der Executor intern vom System aufgerufen wird.
-
-### Web UIs
-
-| Service | URL | Zugangsdaten |
-|---------|-----|--------------|
-| **MinIO Console** | http://localhost:9001 | minioadmin / minioadmin |
-| **RabbitMQ Management** | http://localhost:15672 | guest / guest |
-
-### Endpoints Übersicht
-
-#### Function Management (Registry Service)
-
-| Methode | Endpoint | Beschreibung |
-|---------|----------|--------------|
-| `POST` | `/api/v1/functions` | Neue Funktion registrieren |
-| `GET` | `/api/v1/functions` | Alle Funktionen auflisten |
-| `GET` | `/api/v1/functions/{id}` | Funktion nach ID abrufen |
-| `GET` | `/api/v1/functions/name/{name}` | Funktion nach Name abrufen |
-| `DELETE` | `/api/v1/functions/{id}` | Funktion löschen |
-| `POST` | `/api/v1/functions/{id}/jar` | JAR-Datei hochladen |
-
-#### Function Execution (Executor Service)
-
-| Methode | Endpoint | Beschreibung |
-|---------|----------|--------------|
-| `POST` | `/api/v1/execute/{functionName}` | Funktion ausführen (sync) |
-| `POST` | `/api/v1/execute` | Funktion mit Body ausführen |
-
-### Beispiel-Requests
-
-#### 1. Funktion registrieren
-
-```bash
-curl -X POST http://localhost:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "hello-world",
-    "handler": "hskl.cn.serverless.function.HelloFunction::handle",
-    "runtime": "java17",
-    "timeout": 30,
-    "memory": 256
-  }'
-```
-
-**Response:**
+**Erwartete Antwort:**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "hello-world",
-  "handler": "hskl.cn.serverless.function.HelloFunction::handle",
-  "runtime": "java17",
-  "status": "PENDING",
-  "createdAt": "2025-01-21T18:00:00Z"
-}
-```
-
-#### 2. JAR-Datei hochladen
-
-```bash
-curl -X POST http://localhost:8082/api/v1/functions/{id}/jar \
-  -F "file=@hello-function.jar"
-```
-
-#### 3. Funktion ausführen
-
-```bash
-curl -X POST http://localhost:8082/api/v1/execute/hello-world \
-  -H "Content-Type: application/json" \
-  -d '{"name": "World"}'
-```
-
-**Response:**
-```json
-{
-  "executionId": "exec-123",
-  "functionName": "hello-world",
   "status": "SUCCESS",
-  "output": "Hello, World!",
-  "executionTimeMs": 145,
-  "timestamp": "2025-01-21T18:05:00Z"
+  "result": "Hello, World!",
+  "durationMs": 324
 }
 ```
 
-#### 4. Alle Funktionen auflisten
+### 📖 Vollständige Test-Dokumentation
 
-```bash
-curl http://localhost:8082/api/v1/functions
-```
+➡️ **[docs/TESTING.md](serverless/docs/TESTING.md)** - Alle API-Befehle mit und ohne `jq`
 
 ---
 
 ## 🧪 Test Functions
 
-Im Verzeichnis `serverless/test-functions/` befinden sich vorgefertigte Test-Funktionen:
+Drei vorgefertigte Test-Funktionen sind im Projekt enthalten:
 
-| Function | Input | Output | Beschreibung |
-|----------|-------|--------|--------------|
-| **HelloFunction** | `{"name": "Peter"}` | `"Hello, Peter!"` | Einfache Begrüßung |
-| **SumFunction** | `{"a": 5, "b": 3}` | `8` | Addition zweier Zahlen |
-| **ReverseFunction** | `{"text": "Cloud"}` | `"duolC"` | String umkehren |
+| Function | Beschreibung | Input | Output |
+|----------|--------------|-------|--------|
+| **hello** | Begrüßung | `{"name": "Peter"}` | `Hello, Peter!` |
+| **reverse** | String umkehren | `{"text": "ABC"}` | `CBA` |
+| **sum** | Zahlen addieren | `{"numbers": [1,2,3]}` | `6` |
 
-### Test Functions bauen
+### Test-Functions neu bauen
 
 ```bash
 cd serverless/test-functions
-
-# Alle Functions bauen
 ./build.sh
-
-# Einzelne Function bauen
-./build.sh hello
-./build.sh sum
-./build.sh reverse
 ```
 
-Die fertigen JARs werden in `./jars/` abgelegt.
+Das Script:
+1. Löscht alte `target/` Ordner
+2. Baut alle Funktionen mit Maven
+3. Kopiert die JARs nach `jars/`
 
-### Lokales Testen (ohne Server)
+### Manuelle Schritte
 
 ```bash
-./test-local.sh all
+cd serverless/test-functions
+mvn clean package
+cp helloF/target/hello-function.jar jars/
+cp reverseF/target/reverse-function.jar jars/
+cp sumF/target/sum-function.jar jars/
 ```
 
 ---
 
-## 📸 Demo & Screenshots
+## 📡 API Referenz
 
-### Getestete Funktionalität (Windows Docker Desktop)
+### Function Management
 
-| Feature | Status | Beschreibung |
-|---------|--------|--------------|
-| Services starten | ✅ | Alle 6 Services healthy via `docker-compose up -d` |
-| Function Registration | ✅ | POST `/api/v1/functions` erstellt Function |
-| JAR Upload | ✅ | POST `/api/v1/functions/{id}/jar` speichert in MinIO |
-| Function Listing | ✅ | GET `/api/v1/functions` zeigt alle Functions |
-| Gateway Routing | ✅ | Requests werden korrekt geroutet |
-| Docker Container Creation | ✅ | Executor erstellt Function-Container |
-| Function Execution | ⚠️ | Volume-Mount Issue auf Windows (funktioniert auf Linux/K8s) |
+| Methode | Endpunkt | Beschreibung |
+|---------|----------|--------------|
+| `GET` | `/api/v1/functions` | Alle Functions auflisten |
+| `POST` | `/api/v1/functions` | Neue Function erstellen |
+| `GET` | `/api/v1/functions/name/{name}` | Function nach Name |
+| `PUT` | `/api/v1/functions/name/{name}` | Function aktualisieren |
+| `DELETE` | `/api/v1/functions/name/{name}` | Function löschen |
+| `POST` | `/api/v1/functions/name/{name}/upload` | JAR hochladen |
 
-### Beispiel-Output: Function Registration
+### Function Execution
 
+| Methode | Endpunkt | Beschreibung |
+|---------|----------|--------------|
+| `POST` | `/api/v1/execute` | Function ausführen |
+
+### Request/Response Beispiele
+
+**Function erstellen:**
 ```json
+POST /api/v1/functions
 {
-  "id": "8595a42d-0623-4ad6-a1c4-5cb6087a77df",
-  "name": "hello-world",
-  "handler": "hskl.cn.serverless.function.HelloFunction::handle",
+  "name": "hello",
   "runtime": "java17",
-  "status": "READY",
-  "timeoutSeconds": 30,
+  "handler": "package.ClassName::methodName",
   "memoryMb": 256,
-  "jarPath": "hello-world/hello-function-1.0.0.jar",
-  "jarSize": 3326
+  "timeoutSeconds": 30,
+  "description": "Optional description"
 }
 ```
 
-### Beispiel-Output: Docker Compose Status
-
+**Function ausführen:**
+```json
+POST /api/v1/execute
+{
+  "functionName": "hello",
+  "payload": { "name": "World" }
+}
 ```
-NAME                  STATUS          PORTS
-serverless-postgres   Up (healthy)    0.0.0.0:5432->5432/tcp
-serverless-minio      Up (healthy)    0.0.0.0:9000-9001->9000-9001/tcp
-serverless-rabbitmq   Up (healthy)    0.0.0.0:5672->5672/tcp, 0.0.0.0:15672->15672/tcp
-serverless-registry   Up (healthy)    0.0.0.0:8080->8080/tcp
-serverless-executor   Up (healthy)    0.0.0.0:8081->8081/tcp
-serverless-gateway    Up (healthy)    0.0.0.0:8082->8082/tcp
+
+**Response:**
+```json
+{
+  "executionId": "uuid",
+  "functionName": "hello",
+  "status": "SUCCESS",
+  "result": "Hello, World!",
+  "durationMs": 324,
+  "startedAt": "2026-01-23T21:48:02",
+  "completedAt": "2026-01-23T21:48:03"
+}
 ```
 
 ---
 
-## 📊 12-Factor App Compliance
+## 🚢 Deployment
 
-| Factor | Implementierung | Status |
-|--------|-----------------|--------|
-| **I. Codebase** | Ein Git Repository für alle Services | ✅ |
-| **II. Dependencies** | Maven `pom.xml` mit allen Abhängigkeiten | ✅ |
-| **III. Config** | Umgebungsvariablen, `application.yml` | ✅ |
-| **IV. Backing Services** | PostgreSQL, MinIO, RabbitMQ als externe Services | ✅ |
-| **V. Build, Release, Run** | GitHub Actions CI/CD Pipeline | ✅ |
-| **VI. Processes** | Stateless Services, kein lokaler State | ✅ |
-| **VII. Port Binding** | Spring Boot Embedded Server | ✅ |
-| **VIII. Concurrency** | Horizontale Skalierung via Kubernetes | ✅ |
-| **IX. Disposability** | Schneller Start, Graceful Shutdown | ✅ |
-| **X. Dev/Prod Parity** | Docker Compose = Kubernetes Config | ✅ |
-| **XI. Logs** | Stdout/Stderr, strukturiertes Logging | ✅ |
-| **XII. Admin Processes** | Actuator Endpoints, Health Checks | ✅ |
-
----
-
-## ☁️ Deployment
-
-### Option 1: Docker Compose (DevProdParity - Lokal)
+### Option 1: Docker Compose (Lokal)
 
 ```bash
-# Starten
+cd serverless
 docker-compose up -d
-
-# Status prüfen
-docker-compose ps
-
-# Logs anzeigen
-docker-compose logs -f
-
-# Stoppen
-docker-compose down -v
 ```
 
-### Option 2: Minikube (Kubernetes Lokal)
+### Option 2: Kubernetes / Minikube
 
 ```bash
-# Minikube starten
-minikube start --driver=docker --memory=4096
+cd k8s
+./deploy.sh
 
-# Docker Registry für Minikube konfigurieren
-eval $(minikube docker-env)
-
-# Images lokal bauen
-mvn clean package -DskipTests
-docker build -t registry-service:latest ./registry-service
-docker build -t executor-service:latest ./executor-service
-docker build -t gateway-service:latest ./gateway-service
-
-# Kubernetes Manifeste anwenden
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/
-
-# Status prüfen
-kubectl get pods -n serverless
-kubectl get services -n serverless
-
-# Gateway URL abrufen
-minikube service gateway-service -n serverless --url
-
-# Dashboard öffnen (optional)
-minikube dashboard
+# Oder manuell:
+kubectl apply -f 00-namespace.yaml
+kubectl apply -f .
 ```
 
-### Option 3: Google Cloud Run
+### Web UIs
 
-```bash
-# Projekt konfigurieren
-gcloud config set project YOUR_PROJECT_ID
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com
-
-# Artifact Registry erstellen
-gcloud artifacts repositories create serverless-runner \
-  --repository-format=docker \
-  --location=europe-west1
-
-# Authentifizierung
-gcloud auth configure-docker europe-west1-docker.pkg.dev
-
-# Images bauen und pushen
-REGION=europe-west1
-PROJECT_ID=YOUR_PROJECT_ID
-REPO=serverless-runner
-
-for SERVICE in registry-service executor-service gateway-service; do
-  docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:latest ./${SERVICE}
-  docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${SERVICE}:latest
-done
-
-# Cloud Run Deployment
-gcloud run deploy gateway-service \
-  --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/gateway-service:latest \
-  --platform managed \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --set-env-vars "SPRING_PROFILES_ACTIVE=prod"
-```
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| MinIO Console | http://localhost:9001 | minioadmin / minioadmin |
+| RabbitMQ Management | http://localhost:15672 | guest / guest |
 
 ---
 
-## 🔄 CI/CD Pipeline
+## ⚙️ Konfiguration
 
-GitHub Actions automatisiert den gesamten Build- und Deployment-Prozess:
+### Umgebungsvariablen
 
-```yaml
-# .github/workflows/ci.yml - Vereinfachte Darstellung
-name: CI/CD Pipeline
-
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-      - name: Build & Test
-        run: mvn clean verify
-
-  docker-build:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Build Docker Images
-        run: |
-          docker build -t registry-service ./registry-service
-          docker build -t executor-service ./executor-service
-          docker build -t gateway-service ./gateway-service
-
-  deploy:
-    needs: docker-build
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to GCR
-        run: echo "Deploy to Google Cloud Run"
-```
-
-### Pipeline Stages
-
-| Stage | Beschreibung |
-|-------|--------------|
-| **Build** | Maven compile, package |
-| **Test** | Unit Tests, Integration Tests |
-| **Docker** | Multi-Stage Image Build |
-| **Deploy** | Push to Registry, Deploy to GCR |
-
----
-
-## 🔒 Security
-
-### Implementierte Sicherheitsmaßnahmen
-
-| Maßnahme | Beschreibung |
-|----------|--------------|
-| **Container Isolation** | Jede Funktion läuft in eigenem Container |
-| **Resource Limits** | CPU/Memory Limits verhindern Resource Exhaustion |
-| **Non-Root User** | Container laufen als non-root (UID 1000) |
-| **Network Policies** | Service-zu-Service Kommunikation eingeschränkt |
-| **Secrets Management** | Sensitive Daten in K8s Secrets / Env Vars |
-| **Timeout Protection** | Automatische Terminierung bei Timeout |
-| **Read-Only Filesystem** | Containers haben read-only Root Filesystem |
-
-### Kubernetes Security Context
-
-```yaml
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1000
-  readOnlyRootFilesystem: true
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
-```
-
----
-
-## 🧪 Testing
-
-### Unit Tests ausführen
-
-```bash
-# Alle Tests
-mvn test
-
-# Einzelner Service
-mvn test -pl registry-service
-mvn test -pl executor-service
-mvn test -pl gateway-service
-```
-
-### Test Coverage Report
-
-```bash
-mvn test jacoco:report
-# Report unter: target/site/jacoco/index.html
-```
-
-### Aktueller Test-Status
-
-| Service | Tests | Status |
-|---------|-------|--------|
-| Registry Service | 26 | ✅ |
-| Executor Service | 16 | ✅ |
-| Gateway Service | 10 | ✅ |
-| **Gesamt** | **52** | ✅ |
+| Variable | Default | Beschreibung |
+|----------|---------|--------------|
+| `DATABASE_URL` | `jdbc:postgresql://postgres:5432/serverless` | DB Connection |
+| `DATABASE_USER` | `postgres` | DB User |
+| `DATABASE_PASSWORD` | `postgres` | DB Password |
+| `MINIO_ENDPOINT` | `http://minio:9000` | MinIO URL |
+| `MINIO_ACCESS_KEY` | `minioadmin` | MinIO Access Key |
+| `MINIO_SECRET_KEY` | `minioadmin` | MinIO Secret Key |
+| `RABBITMQ_HOST` | `rabbitmq` | RabbitMQ Host |
+| `DOCKER_HOST` | `unix:///var/run/docker.sock` | Docker Socket |
 
 ---
 
@@ -615,74 +272,32 @@ mvn test jacoco:report
 
 ```
 serverless/
-├── gateway-service/          # API Gateway
-│   ├── src/main/java/
-│   │   └── hskl/cn/serverless/gateway/
-│   │       ├── config/       # Gateway Konfiguration
-│   │       └── filter/       # Logging Filter
-│   └── src/main/resources/
-│       └── application.yml
-│
-├── registry-service/         # Function Registry
-│   ├── src/main/java/
-│   │   └── hskl/cn/serverless/registry/
-│   │       ├── controller/   # REST Controller
-│   │       ├── service/      # Business Logic
-│   │       ├── repository/   # JPA Repository
-│   │       ├── model/        # Entity Classes
-│   │       └── dto/          # Data Transfer Objects
-│   └── src/main/resources/
-│       └── application.yml
-│
-├── executor-service/         # Function Executor
-│   ├── src/main/java/
-│   │   └── hskl/cn/serverless/executor/
-│   │       ├── controller/   # REST Controller
-│   │       ├── service/      # Docker Execution
-│   │       └── dto/          # Request/Response DTOs
-│   └── src/main/resources/
-│       └── application.yml
-│
-├── test-functions/           # Vorgefertigte Test-Funktionen
-│   ├── helloF/               # Hello Function
-│   ├── sumF/                 # Sum Function
-│   ├── reverseF/             # Reverse Function
-│   ├── build.sh              # Build Script
-│   └── jars/                 # Kompilierte JARs
-│
-├── k8s/                      # Kubernetes Manifeste
-│   ├── 00-namespace.yaml
-│   ├── 01-configmap.yaml
-│   ├── 02-secrets.yaml
-│   ├── 10-postgres.yaml
-│   ├── 11-minio.yaml
-│   ├── 12-rabbitmq.yaml
-│   ├── 20-registry-service.yaml
-│   ├── 21-executor-service.yaml
-│   └── 22-gateway-service.yaml
-│
-├── docker-compose.yml        # Lokale Entwicklung
-├── pom.xml                   # Parent POM
-└── README.md
+├── gateway-service/        # API Gateway (Port 8082)
+├── registry-service/       # Function Registry (Port 8080)
+├── executor-service/       # Function Executor (Port 8081)
+├── test-functions/         # Vorgefertigte Test-Funktionen
+│   ├── helloF/            
+│   ├── reverseF/          
+│   ├── sumF/              
+│   ├── jars/              # Kompilierte JARs
+│   └── build.sh           # Build Script
+├── docs/
+│   └── TESTING.md         # Vollständige Test-Dokumentation
+├── docker-compose.yml
+└── pom.xml
+
+k8s/                        # Kubernetes Manifeste
+├── 00-namespace.yaml
+├── 01-configmap.yaml
+├── 02-secrets.yaml
+├── 10-postgres.yaml
+├── 11-minio.yaml
+├── 12-rabbitmq.yaml
+├── 20-registry-service.yaml
+├── 21-executor-service.yaml
+├── 22-gateway-service.yaml
+└── deploy.sh
 ```
-
----
-
-## 🔧 Konfiguration
-
-### Umgebungsvariablen
-
-| Variable | Standard | Beschreibung |
-|----------|----------|--------------|
-| `SERVER_PORT` | 8080/8081/8082 | Server Port |
-| `SPRING_PROFILES_ACTIVE` | default | Aktives Profil |
-| `POSTGRES_HOST` | localhost | PostgreSQL Host |
-| `POSTGRES_PORT` | 5432 | PostgreSQL Port |
-| `POSTGRES_DB` | serverless | Datenbankname |
-| `MINIO_ENDPOINT` | http://localhost:9000 | MinIO Endpoint |
-| `MINIO_ACCESS_KEY` | minioadmin | MinIO Access Key |
-| `MINIO_SECRET_KEY` | minioadmin | MinIO Secret Key |
-| `RABBITMQ_HOST` | localhost | RabbitMQ Host |
 
 ---
 
@@ -694,6 +309,5 @@ MIT License - siehe [LICENSE](LICENSE)
 
 <p align="center">
   <b>Cloud Native Software Engineering</b><br>
-  Hochschule Kaiserslautern<br><br>
-  Made with ❤️ using Spring Boot, Docker & Kubernetes
+  Hochschule Kaiserslautern
 </p>

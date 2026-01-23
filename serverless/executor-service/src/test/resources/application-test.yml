@@ -1,26 +1,26 @@
-# Test configuration for Executor Service
+
 spring:
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.amqp.RabbitAutoConfiguration
 
-# Docker - mocked in tests
+
 docker:
   host: tcp://localhost:2375
   runtime-image: eclipse-temurin:17-jre-alpine
 
-# MinIO - mocked in tests
+
 minio:
   endpoint: http://localhost:9000
   access-key: minioadmin
   secret-key: minioadmin
   bucket: functions
 
-# Registry Service URL - mocked in tests
+
 registry:
   url: http://localhost:8080
 
-# Logging - minimal for tests
+
 logging:
   level:
     root: WARN

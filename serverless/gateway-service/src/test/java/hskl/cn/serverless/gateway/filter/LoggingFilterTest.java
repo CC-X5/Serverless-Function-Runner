@@ -22,10 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for LoggingFilter.
- * Tests request logging functionality.
- */
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("LoggingFilter Tests")
 class LoggingFilterTest {
@@ -49,7 +46,7 @@ class LoggingFilterTest {
     @Test
     @DisplayName("should log incoming GET request")
     void shouldLogIncomingGetRequest() {
-        // Given
+
         MockServerHttpRequest request = MockServerHttpRequest
                 .get("/api/v1/functions")
                 .build();
@@ -57,21 +54,21 @@ class LoggingFilterTest {
         
         when(filterChain.filter(any(ServerWebExchange.class))).thenReturn(Mono.empty());
 
-        // When
+
         Mono<Void> result = loggingFilter.filter(exchange, filterChain);
 
-        // Then
+
         StepVerifier.create(result)
                 .verifyComplete();
         
-        // Verify start time was set
+
         assertThat(exchange.getAttributes().get("startTime")).isNotNull();
     }
 
     @Test
     @DisplayName("should log incoming POST request")
     void shouldLogIncomingPostRequest() {
-        // Given
+
         MockServerHttpRequest request = MockServerHttpRequest
                 .post("/api/v1/execute/test")
                 .build();
@@ -79,10 +76,10 @@ class LoggingFilterTest {
         
         when(filterChain.filter(any(ServerWebExchange.class))).thenReturn(Mono.empty());
 
-        // When
+
         Mono<Void> result = loggingFilter.filter(exchange, filterChain);
 
-        // Then
+
         StepVerifier.create(result)
                 .verifyComplete();
     }
@@ -90,24 +87,24 @@ class LoggingFilterTest {
     @Test
     @DisplayName("should track request duration")
     void shouldTrackRequestDuration() {
-        // Given
+
         MockServerHttpRequest request = MockServerHttpRequest
                 .get("/api/v1/functions")
                 .build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);
         
-        // Simulate some delay
+
         when(filterChain.filter(any(ServerWebExchange.class)))
                 .thenReturn(Mono.delay(java.time.Duration.ofMillis(50)).then());
 
-        // When
+
         Mono<Void> result = loggingFilter.filter(exchange, filterChain);
 
-        // Then
+
         StepVerifier.create(result)
                 .verifyComplete();
         
-        // Start time should have been recorded
+
         Long startTime = exchange.getAttribute("startTime");
         assertThat(startTime).isNotNull();
     }
@@ -115,7 +112,7 @@ class LoggingFilterTest {
     @Test
     @DisplayName("should handle different HTTP methods")
     void shouldHandleDifferentMethods() {
-        // Test PUT
+
         MockServerHttpRequest putRequest = MockServerHttpRequest
                 .put("/api/v1/functions/123")
                 .build();
@@ -126,7 +123,7 @@ class LoggingFilterTest {
         StepVerifier.create(loggingFilter.filter(putExchange, filterChain))
                 .verifyComplete();
 
-        // Test DELETE
+
         MockServerHttpRequest deleteRequest = MockServerHttpRequest
                 .delete("/api/v1/functions/123")
                 .build();

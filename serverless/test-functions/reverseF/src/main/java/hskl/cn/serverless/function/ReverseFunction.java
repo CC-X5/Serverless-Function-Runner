@@ -1,19 +1,27 @@
 package hskl.cn.serverless.function;
 
-import java.util.Map;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
-/**
- * Reverses a given string.
- */
+
 public class ReverseFunction {
 
-    /**
-     * Handles the function invocation.
-     * @param input Map containing "text" parameter
-     * @return Reversed string
-     */
-    public String handle(Map<String, Object> input) {
-        String text = input.getOrDefault("text", "").toString();
+    private static final Gson gson = new Gson();
+
+
+    public String handle(String input) {
+        JsonObject json = gson.fromJson(input, JsonObject.class);
+        String text = json.has("text") ? json.get("text").getAsString() : "";
         return new StringBuilder(text).reverse().toString();
+    }
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("");
+            return;
+        }
+        ReverseFunction function = new ReverseFunction();
+        String result = function.handle(args[0]);
+        System.out.println(result);
     }
 }

@@ -22,10 +22,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/**
- * Unit tests for ExecutionController.
- * Uses @WebMvcTest for isolated controller testing.
- */
+
 @WebMvcTest(ExecutionController.class)
 @DisplayName("ExecutionController Tests")
 class ExecutionControllerTest {
@@ -59,7 +56,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute/hello")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\": \"World\"}"))
@@ -74,7 +70,6 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should handle execution failure")
         void shouldHandleExecutionFailure() throws Exception {
-            // Given
             ExecutionResponse response = ExecutionResponse.builder()
                     .executionId("exec-456")
                     .functionName("failing-function")
@@ -86,7 +81,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute/failing-function")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
@@ -98,7 +92,6 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should handle execution timeout")
         void shouldHandleExecutionTimeout() throws Exception {
-            // Given
             ExecutionResponse response = ExecutionResponse.builder()
                     .executionId("exec-789")
                     .functionName("slow-function")
@@ -110,7 +103,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute/slow-function")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
@@ -121,7 +113,6 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should execute without payload")
         void shouldExecuteWithoutPayload() throws Exception {
-            // Given
             ExecutionResponse response = ExecutionResponse.builder()
                     .executionId("exec-no-payload")
                     .functionName("no-input")
@@ -131,7 +122,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then - no body at all
             mockMvc.perform(post("/api/v1/execute/no-input")
                             .contentType(MediaType.APPLICATION_JSON))
                     .andExpect(status().isOk())
@@ -146,7 +136,6 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should execute function with full request body")
         void shouldExecuteWithFullBody() throws Exception {
-            // Given
             ExecutionRequest request = ExecutionRequest.builder()
                     .functionName("my-function")
                     .payload(Map.of("key", "value"))
@@ -162,7 +151,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -174,7 +162,6 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should handle async execution request")
         void shouldHandleAsyncRequest() throws Exception {
-            // Given
             ExecutionRequest request = ExecutionRequest.builder()
                     .functionName("async-function")
                     .payload(Map.of("data", "test"))
@@ -189,7 +176,6 @@ class ExecutionControllerTest {
 
             when(executionService.execute(any(ExecutionRequest.class))).thenReturn(response);
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(request)))
@@ -205,11 +191,9 @@ class ExecutionControllerTest {
         @Test
         @DisplayName("should return 500 when service throws exception")
         void shouldReturn500OnServiceException() throws Exception {
-            // Given
             when(executionService.execute(any(ExecutionRequest.class)))
                     .thenThrow(new RuntimeException("Docker connection failed"));
 
-            // When/Then
             mockMvc.perform(post("/api/v1/execute/test")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))

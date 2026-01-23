@@ -33,10 +33,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
-/**
- * Unit tests for DockerExecutionService.
- * Tests function execution logic with mocked Docker client.
- */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DockerExecutionService Tests")
 class DockerExecutionServiceTest {
@@ -62,8 +58,7 @@ class DockerExecutionServiceTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        
-        // Create service with mocks - we'll test individual components
+
         testFunctionInfo = FunctionInfo.builder()
                 .id(UUID.randomUUID())
                 .name("test-function")
@@ -89,7 +84,6 @@ class DockerExecutionServiceTest {
         @Test
         @DisplayName("should reject execution when function not found")
         void shouldRejectWhenFunctionNotFound() {
-            // Given
             when(registryClient.getFunction("unknown")).thenReturn(Optional.empty());
             DockerExecutionService service = new DockerExecutionService(
                     dockerClient, dockerConfig, registryClient, objectMapper, minioClient);
@@ -99,7 +93,6 @@ class DockerExecutionServiceTest {
                     .payload(Map.of())
                     .build();
 
-            // When/Then
             assertThatThrownBy(() -> service.execute(request))
                     .isInstanceOf(ExecutionException.class)
                     .hasMessageContaining("Function not found");
@@ -108,7 +101,6 @@ class DockerExecutionServiceTest {
         @Test
         @DisplayName("should reject execution when function not ready")
         void shouldRejectWhenFunctionNotReady() {
-            // Given
             FunctionInfo pendingFunction = FunctionInfo.builder()
                     .id(UUID.randomUUID())
                     .name("pending-function")
@@ -126,7 +118,6 @@ class DockerExecutionServiceTest {
                     .payload(Map.of())
                     .build();
 
-            // When/Then
             assertThatThrownBy(() -> service.execute(request))
                     .isInstanceOf(ExecutionException.class)
                     .hasMessageContaining("not ready");
@@ -135,7 +126,6 @@ class DockerExecutionServiceTest {
         @Test
         @DisplayName("should reject execution when function has no JAR")
         void shouldRejectWhenNoJar() {
-            // Given
             FunctionInfo noJarFunction = FunctionInfo.builder()
                     .id(UUID.randomUUID())
                     .name("no-jar-function")
@@ -153,7 +143,6 @@ class DockerExecutionServiceTest {
                     .payload(Map.of())
                     .build();
 
-            // When/Then
             assertThatThrownBy(() -> service.execute(request))
                     .isInstanceOf(ExecutionException.class)
                     .hasMessageContaining("no JAR");

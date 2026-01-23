@@ -1,19 +1,25 @@
 package hskl.cn.serverless.function;
 
-import java.util.Map;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 
-/**
- * Simple greeting function that returns a personalized hello message.
- */
 public class HelloFunction {
 
-    /**
-     * Handles the function invocation.
-     * @param input Map containing optional "name" parameter
-     * @return Greeting message
-     */
-    public String handle(Map<String, Object> input) {
-        String name = input.getOrDefault("name", "World").toString();
+    private static final Gson gson = new Gson();
+
+    public String handle(String input) {
+        JsonObject json = gson.fromJson(input, JsonObject.class);
+        String name = json.has("name") ? json.get("name").getAsString() : "World";
         return "Hello, " + name + "!";
+    }
+
+    public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Hello, World!");
+            return;
+        }
+        HelloFunction function = new HelloFunction();
+        String result = function.handle(args[0]);
+        System.out.println(result);
     }
 }

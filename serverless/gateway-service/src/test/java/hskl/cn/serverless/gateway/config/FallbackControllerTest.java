@@ -12,10 +12,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Unit tests for FallbackController.
- * Tests circuit breaker fallback responses.
- */
+
 @DisplayName("FallbackController Tests")
 class FallbackControllerTest {
 
@@ -29,10 +26,10 @@ class FallbackControllerTest {
     @Test
     @DisplayName("should return service unavailable for registry fallback")
     void shouldReturnUnavailableForRegistryFallback() {
-        // When
+
         Mono<ResponseEntity<Map<String, Object>>> result = fallbackController.registryFallback();
 
-        // Then
+
         StepVerifier.create(result)
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -48,10 +45,10 @@ class FallbackControllerTest {
     @Test
     @DisplayName("should return service unavailable for executor fallback")
     void shouldReturnUnavailableForExecutorFallback() {
-        // When
+
         Mono<ResponseEntity<Map<String, Object>>> result = fallbackController.executorFallback();
 
-        // Then
+
         StepVerifier.create(result)
                 .assertNext(response -> {
                     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -67,10 +64,10 @@ class FallbackControllerTest {
     @Test
     @DisplayName("should include timestamp in fallback response")
     void shouldIncludeTimestampInResponse() {
-        // When
+
         Mono<ResponseEntity<Map<String, Object>>> result = fallbackController.registryFallback();
 
-        // Then
+
         StepVerifier.create(result)
                 .assertNext(response -> {
                     assertThat(response.getBody().get("timestamp")).isNotNull();
@@ -84,10 +81,10 @@ class FallbackControllerTest {
     @Test
     @DisplayName("should return error key in response body")
     void shouldReturnErrorKey() {
-        // When
+
         Mono<ResponseEntity<Map<String, Object>>> result = fallbackController.executorFallback();
 
-        // Then
+
         StepVerifier.create(result)
                 .assertNext(response -> {
                     assertThat(response.getBody().get("error")).isEqualTo("Service Unavailable");
