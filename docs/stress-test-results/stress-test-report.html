@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Stress Test Report — Serverless Function Runner</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 2rem; background: #f8f9fa; color: #212529; }
+        h1 { border-bottom: 3px solid #4C72B0; padding-bottom: .5rem; }
+        h2 { color: #4C72B0; margin-top: 2rem; }
+        table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+        th, td { border: 1px solid #dee2e6; padding: .5rem .75rem; text-align: right; }
+        th { background: #4C72B0; color: #fff; }
+        td:first-child, th:first-child { text-align: left; }
+        tr:nth-child(even) { background: #e9ecef; }
+        .chart { margin: 1.5rem 0; text-align: center; }
+        .chart img { max-width: 100%; border: 1px solid #dee2e6; border-radius: 4px; }
+        .meta { background: #fff; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
+        .meta dt { font-weight: bold; }
+        .meta dd { margin: 0 0 .5rem 1rem; }
+        footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #dee2e6; font-size: .85rem; color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Stress Test Report</h1>
+    <p>Serverless Function Runner API — Automatisierter Lasttest</p>
+
+    <h2>Testbedingungen</h2>
+    <div class="meta">
+        <dl>
+            <dt>Datum / Uhrzeit</dt>
+            <dd>2026-01-29 16:11:27 — 16:12:13 (46s)</dd>
+            <dt>Betriebssystem</dt>
+            <dd>Windows-10-10.0.19045-SP0</dd>
+            <dt>Prozessor</dt>
+            <dd>AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD</dd>
+            <dt>Python</dt>
+            <dd>3.12.3</dd>
+            <dt>Docker Compose Services</dt>
+            <dd>PostgreSQL 16, MinIO, RabbitMQ 3, Registry (8080), Executor (8081), Gateway (8082)</dd>
+            <dt>Concurrent Levels</dt>
+            <dd>10, 25, 50, 100</dd>
+            <dt>Sustained Load</dt>
+            <dd>200 Requests @ ~20 req/s</dd>
+        </dl>
+    </div>
+
+    <h2>Ergebnistabelle</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Szenario</th><th>Requests</th>
+                <th>Avg (ms)</th><th>Min (ms)</th><th>Max (ms)</th>
+                <th>P95 (ms)</th><th>P99 (ms)</th>
+                <th>Req/s</th><th>Fehler</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td>Health Check</td><td>50</td><td>1.2</td><td>1.1</td><td>1.7</td><td>1.5</td><td>1.6</td><td>667.2</td><td>0.0%</td></tr>
+            <tr><td>List Functions</td><td>50</td><td>2.0</td><td>1.7</td><td>3.0</td><td>2.6</td><td>3.0</td><td>453.8</td><td>0.0%</td></tr>
+            <tr><td>Execute Functions</td><td>30</td><td>381.9</td><td>339.8</td><td>421.8</td><td>415.1</td><td>420.9</td><td>2.7</td><td>0.0%</td></tr>
+            <tr><td>Concurrent-10</td><td>10</td><td>1028.1</td><td>927.0</td><td>1083.0</td><td>1081.6</td><td>1082.7</td><td>1665.0</td><td>0.0%</td></tr>
+            <tr><td>Concurrent-25</td><td>25</td><td>1981.4</td><td>1481.0</td><td>2256.8</td><td>2233.0</td><td>2251.4</td><td>1388.8</td><td>0.0%</td></tr>
+            <tr><td>Concurrent-50</td><td>50</td><td>3819.7</td><td>2177.3</td><td>4259.0</td><td>4253.7</td><td>4257.9</td><td>1515.1</td><td>0.0%</td></tr>
+            <tr><td>Concurrent-100</td><td>100</td><td>8272.5</td><td>6244.9</td><td>9336.8</td><td>9168.5</td><td>9309.9</td><td>1098.6</td><td>0.0%</td></tr>
+            <tr><td>Sustained Load</td><td>200</td><td>3210.4</td><td>1916.1</td><td>4199.9</td><td>4049.0</td><td>4195.9</td><td>13.2</td><td>0.0%</td></tr>
+        </tbody>
+    </table>
+
+    <h2>Diagramme</h2>
+    <div class="chart"><img src="01_endpoint_response_times.png" alt="01_endpoint_response_times"></div>
+        <div class="chart"><img src="02_latency_vs_concurrency.png" alt="02_latency_vs_concurrency"></div>
+        <div class="chart"><img src="03_sustained_over_time.png" alt="03_sustained_over_time"></div>
+        <div class="chart"><img src="04_success_vs_error.png" alt="04_success_vs_error"></div>
+        <div class="chart"><img src="05_throughput.png" alt="05_throughput"></div>
+
+    <footer>
+        Generiert am 2026-01-29 16:12:14 mit stress-test.py
+    </footer>
+</body>
+</html>

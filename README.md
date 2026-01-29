@@ -231,16 +231,18 @@ cd serverless
 docker-compose up -d
 ```
 
-### Option 2: Kubernetes / Minikube
+### Option 2: Google Kubernetes Engine (GKE)
 
 ```bash
 cd k8s
-./deploy.sh
+./deploy-gke.sh
 
 # Oder manuell:
 kubectl apply -f 00-namespace.yaml
 kubectl apply -f .
 ```
+
+Vollständige Anleitung: [QUICKSTART - GCS.md](QUICKSTART%20-%20GCS.md)
 
 ### Web UIs
 
@@ -286,7 +288,7 @@ serverless/
 ├── docker-compose.yml
 └── pom.xml
 
-k8s/                        # Kubernetes Manifeste
+k8s/                        # Kubernetes Manifeste (GKE)
 ├── 00-namespace.yaml
 ├── 01-configmap.yaml
 ├── 02-secrets.yaml
@@ -296,7 +298,7 @@ k8s/                        # Kubernetes Manifeste
 ├── 20-registry-service.yaml
 ├── 21-executor-service.yaml
 ├── 22-gateway-service.yaml
-└── deploy.sh
+└── deploy-gke.sh
 ```
 
 ---

@@ -4,11 +4,14 @@
 
 | Attribut | Wert |
 |----------|------|
-| **Projekt-ID** | `triple-hour-485121-e0` |
-| **Region** | `europe-west1` |
+| **Projekt-ID** | `serverless-function-runner` |
+| **Region** | `europe-west3` |
+| **Cluster** | `serverless-cluster` (GKE) |
 | **Zeitraum** | 17.-23. Januar 2026 |
 | **Gesamtkosten** | 0,00 € (0,22 € Kosten - 0,22 € Einsparungen) |
 | **Guthaben verbleibend** | 255 € |
+
+> **Hinweis:** Teil 2 (Cloud Run) dokumentiert einen früheren Test mit dem Projekt `triple-hour-485121-e0` in `europe-west1`. Dieses Projekt wurde inzwischen durch das aktuelle GKE-Setup ersetzt.
 
 ---
 

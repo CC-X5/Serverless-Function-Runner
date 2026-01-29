@@ -8,8 +8,6 @@ on:
 
 env:
   JAVA_VERSION: '17'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
   GCP_REGION: europe-west3
   GKE_CLUSTER: serverless-cluster
   GAR_REGISTRY: europe-west3-docker.pkg.dev
@@ -196,79 +194,12 @@ jobs:
         run: docker compose down -v
 
   # ============================================
-  # Stage 5: Push Docker Images (only on main)
-  # ============================================
-  docker-push:
-    name: Push Docker Images
-    runs-on: ubuntu-latest
-    needs: integration-test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    defaults:
-      run:
-        working-directory: serverless
-
-    permissions:
-      contents: read
-      packages: write
-
-    strategy:
-      matrix:
-        service: [registry-service, executor-service, gateway-service]
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: maven
-
-      - name: Make Maven Wrapper executable
-        run: chmod +x mvnw
-
-      - name: Package Application
-        run: ./mvnw package -DskipTests -B
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.service }}
-          tags: |
-            type=sha
-            type=raw,value=latest
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./serverless
-          file: ./serverless/${{ matrix.service }}/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ============================================
-  # Stage 6: Deploy to GKE
+  # Stage 5: Deploy to GKE
   # ============================================
   deploy:
     name: Deploy to GKE
     runs-on: ubuntu-latest
-    needs: docker-push
+    needs: integration-test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
