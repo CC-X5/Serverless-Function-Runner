@@ -1,0 +1,14 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/registry-service', '-f', 'registry-service/Dockerfile', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/executor-service', '-f', 'executor-service/Dockerfile', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/gateway-service', '-f', 'gateway-service/Dockerfile', '.']
+
+images:
+  - 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/registry-service'
+  - 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/executor-service'
+  - 'europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/gateway-service'

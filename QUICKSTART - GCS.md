@@ -2,6 +2,8 @@
 
 Vollstaendige Anleitung zum Aufsetzen und Demonstrieren des Projekts auf Google Kubernetes Engine.
 
+> **Hinweis:** Alle Befehle sind fuer Windows CMD optimiert. Jeder Befehl ist einzeln kopierbar.
+
 ---
 
 ## Architektur
@@ -34,61 +36,100 @@ Vollstaendige Anleitung zum Aufsetzen und Demonstrieren des Projekts auf Google 
 
 ---
 
+## Voraussetzungen
+
+| Tool | Installation |
+|------|-------------|
+| gcloud CLI | https://cloud.google.com/sdk/docs/install |
+| Java 17+ (JDK) | https://adoptium.net/ |
+| Maven | `choco install maven -y` (CMD als Administrator) |
+| jq | `winget install jqlang.jq` |
+
+---
+
 ## Teil 1: GCP Setup (einmalig)
 
-### 1.1 gcloud CLI installieren
+### 1.1 Authentifizieren und Projekt erstellen
 
-Download: https://cloud.google.com/sdk/docs/install
-
-### 1.2 Authentifizieren und Projekt erstellen
-
-```bash
+```
 gcloud auth login
+```
 
+```
 gcloud projects create serverless-function-runner --name="Serverless Function Runner"
+```
+
+```
 gcloud config set project serverless-function-runner
+```
+
+```
 gcloud config set compute/region europe-west3
 ```
 
-### 1.3 Billing verknuepfen
+### 1.2 Billing verknuepfen
 
-```bash
+```
 gcloud billing accounts list
+```
+
+```
 gcloud billing projects link serverless-function-runner --billing-account=DEINE_BILLING_ACCOUNT_ID
 ```
 
-### 1.4 APIs aktivieren
+### 1.3 APIs aktivieren
 
-```bash
+```
 gcloud services enable container.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
 ```
 
-### 1.5 Artifact Registry erstellen
+### 1.4 Artifact Registry erstellen
 
-```bash
+```
 gcloud artifacts repositories create serverless-runner --repository-format=docker --location=europe-west3
 ```
 
-### 1.6 GKE Cluster erstellen
+### 1.5 GKE Cluster erstellen
 
-```bash
+```
 gcloud container clusters create serverless-cluster --region europe-west3 --num-nodes 1 --machine-type e2-standard-2 --disk-size 30 --enable-ip-alias
 ```
 
 > GKE Standard (nicht Autopilot) ist noetig, da der Executor-Service einen privilegierten DinD-Container benoetigt.
 
+### 1.6 Plugins installieren
+
+```
+gcloud components install gke-gcloud-auth-plugin
+```
+
+```
+gcloud components install kubectl
+```
+
+> Nach der Installation CMD neu starten, damit die Befehle verfuegbar sind.
+
 ### 1.7 kubectl verbinden
 
-```bash
+```
 gcloud container clusters get-credentials serverless-cluster --region europe-west3
+```
+
+Verbindung testen:
+
+```
+kubectl get nodes
 ```
 
 ---
 
 ## Teil 2: Docker Images bauen und pushen
 
-```bash
+```
 cd serverless
+```
+
+```
 gcloud builds submit --config=cloudbuild.yaml .
 ```
 
@@ -98,41 +139,85 @@ Baut alle 3 Services und pusht sie nach Google Artifact Registry.
 
 ## Teil 3: Deployment
 
-### Option A: Manuell mit Script
+### Option A: Mit Script (Windows CMD)
 
-```bash
+```
 cd k8s
-chmod +x deploy-gke.sh
-./deploy-gke.sh
+```
+
+```
+deploy-gke.bat
 ```
 
 ### Option B: Manuell Schritt fuer Schritt
 
-```bash
+```
 cd k8s
+```
 
-# Namespace und Konfiguration
+Namespace und Konfiguration:
+
+```
 kubectl apply -f 00-namespace.yaml
+```
+
+```
 kubectl apply -f 01-configmap.yaml
+```
+
+```
 kubectl apply -f 02-secrets.yaml
+```
 
-# Infrastruktur
+Infrastruktur:
+
+```
 kubectl apply -f 10-postgres.yaml
+```
+
+```
 kubectl apply -f 11-minio.yaml
+```
+
+```
 kubectl apply -f 12-rabbitmq.yaml
+```
 
-# Warten bis Infrastruktur bereit ist
+Warten bis Infrastruktur bereit ist:
+
+```
 kubectl wait --for=condition=ready pod -l app=postgres -n serverless --timeout=120s
+```
+
+```
 kubectl wait --for=condition=ready pod -l app=minio -n serverless --timeout=120s
+```
 
-# Application Services
+Application Services:
+
+```
 kubectl apply -f 20-registry-service.yaml
-kubectl apply -f 21-executor-service.yaml
-kubectl apply -f 22-gateway-service.yaml
+```
 
-# Warten bis Services bereit sind
+```
+kubectl apply -f 21-executor-service.yaml
+```
+
+```
+kubectl apply -f 22-gateway-service.yaml
+```
+
+Warten bis Services bereit sind:
+
+```
 kubectl wait --for=condition=ready pod -l app=registry-service -n serverless --timeout=240s
+```
+
+```
 kubectl wait --for=condition=ready pod -l app=executor-service -n serverless --timeout=240s
+```
+
+```
 kubectl wait --for=condition=ready pod -l app=gateway-service -n serverless --timeout=240s
 ```
 
@@ -142,166 +227,260 @@ Bei jedem Push auf `main` wird automatisch gebaut, getestet und deployed.
 
 Voraussetzung: GitHub Secrets konfiguriert (siehe Teil 5).
 
-```bash
+```
 git push origin main
 ```
 
 ---
 
-## Teil 3.5: Test-Functions bauen
+## Teil 3.5: Nach dem Deployment
 
-Vor der Demo muessen die JAR-Dateien der Test-Functions gebaut werden.
+### DinD Docker Image vorladen
 
-### Voraussetzung
+Der Executor braucht das Java-Image im DinD-Container. Ohne diesen Schritt schlaegt die erste Ausfuehrung fehl.
 
-- Java 17 (JDK) installiert
-- Maven installiert
+Zuerst den Pod-Namen ermitteln:
 
-### JARs bauen
+```
+kubectl get pods -n serverless -l app=executor-service
+```
 
-```bash
-cd serverless/test-functions
+Dann das Image pullen (POD_NAME ersetzen):
+
+```
+kubectl exec -n serverless POD_NAME -c dind -- docker pull eclipse-temurin:17-jre-alpine
+```
+
+### Status pruefen
+
+```
+kubectl get pods -n serverless
+```
+
+```
+kubectl get svc -n serverless
+```
+
+> Die EXTERNAL-IP vom `gateway-service` ist die oeffentliche URL. Diese IP fuer alle folgenden Befehle als `EXTERNAL_IP` verwenden.
+
+### Erreichbare Seiten
+
+| Seite | URL | Zugang |
+|-------|-----|--------|
+| Health Check | http://EXTERNAL_IP:8082/actuator/health | Direkt im Browser |
+| Swagger UI (API-Doku) | http://EXTERNAL_IP:8082/swagger-ui.html | Direkt im Browser |
+| Functions API | http://EXTERNAL_IP:8082/api/v1/functions | Direkt im Browser |
+| MinIO Console | http://localhost:9001 | Port-Forward noetig (siehe Teil 6) |
+| RabbitMQ Console | http://localhost:15672 | Port-Forward noetig (siehe Teil 6) |
+
+---
+
+## Teil 4: Test-Functions bauen
+
+```
+cd serverless\test-functions
+```
+
+```
 mvn clean package -q
-mkdir -p jars
-cp helloF/target/hello-function.jar jars/
-cp reverseF/target/reverse-function.jar jars/
-cp sumF/target/sum-function.jar jars/
+```
+
+```
+mkdir jars
+```
+
+```
+copy helloF\target\hello-function.jar jars\
+```
+
+```
+copy reverseF\target\reverse-function.jar jars\
+```
+
+```
+copy sumF\target\sum-function.jar jars\
 ```
 
 Oder mit dem Build-Script:
 
-```bash
-cd serverless/test-functions
-chmod +x build.sh
-./build.sh
+```
+build.bat
 ```
 
-Danach liegen 3 JARs in `serverless/test-functions/jars/`:
+Danach liegen 3 JARs in `serverless\test-functions\jars\`:
 - `hello-function.jar`
 - `reverse-function.jar`
 - `sum-function.jar`
 
 ---
 
-## Teil 4: Live Demo
+## Teil 5: Live Demo
 
-### 4.1 Status pruefen
+> **Hinweis:** `EXTERNAL_IP` in allen Befehlen durch die tatsaechliche IP ersetzen (siehe `kubectl get svc -n serverless`).
+>
+> Die `demo.bat` im Ordner `serverless\test-functions` fuehrt alle Schritte (5.2 - 5.6) automatisch aus.
 
-```bash
-kubectl get pods -n serverless
-kubectl get svc -n serverless
+### 5.1 Health Check
+
+```
+curl -s http://EXTERNAL_IP:8082/actuator/health
 ```
 
-Die EXTERNAL-IP vom gateway-service ist die oeffentliche URL.
+### 5.2 Functions registrieren
 
-### 4.2 Health Check
-
-```bash
-curl -s http://EXTERNAL_IP:8082/actuator/health | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d "{\"name\":\"hello\",\"runtime\":\"java17\",\"handler\":\"hskl.cn.serverless.function.HelloFunction::handle\",\"memoryMb\":256,\"timeoutSeconds\":30,\"description\":\"Begruessung\"}"
 ```
 
-### 4.3 Functions registrieren
-
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"hello","runtime":"java17","handler":"hskl.cn.serverless.function.HelloFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Begruessung"}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d "{\"name\":\"reverse\",\"runtime\":\"java17\",\"handler\":\"hskl.cn.serverless.function.ReverseFunction::handle\",\"memoryMb\":256,\"timeoutSeconds\":30,\"description\":\"String umkehren\"}"
 ```
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"reverse","runtime":"java17","handler":"hskl.cn.serverless.function.ReverseFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"String umkehren"}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d "{\"name\":\"sum\",\"runtime\":\"java17\",\"handler\":\"hskl.cn.serverless.function.SumFunction::handle\",\"memoryMb\":256,\"timeoutSeconds\":30,\"description\":\"Zahlen summieren\"}"
 ```
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"sum","runtime":"java17","handler":"hskl.cn.serverless.function.SumFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Zahlen summieren"}' | jq
+### 5.3 Alle Functions auflisten
+
+```
+curl -s http://EXTERNAL_IP:8082/api/v1/functions
 ```
 
-### 4.4 Alle Functions auflisten
+### 5.4 JARs hochladen
 
-```bash
-curl -s http://EXTERNAL_IP:8082/api/v1/functions | jq
+Aus dem `serverless\test-functions` Verzeichnis:
+
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/hello/upload -F "file=@jars/hello-function.jar"
 ```
 
-### 4.5 JARs hochladen
-
-Aus dem `serverless/` Verzeichnis:
-
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/hello/upload -F "file=@test-functions/jars/hello-function.jar" | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/reverse/upload -F "file=@jars/reverse-function.jar"
 ```
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/reverse/upload -F "file=@test-functions/jars/reverse-function.jar" | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/sum/upload -F "file=@jars/sum-function.jar"
 ```
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/sum/upload -F "file=@test-functions/jars/sum-function.jar" | jq
+### 5.5 Status pruefen (alle sollten READY sein)
+
+```
+curl -s http://EXTERNAL_IP:8082/api/v1/functions
 ```
 
-### 4.6 Status pruefen (alle sollten READY sein)
-
-```bash
-curl -s http://EXTERNAL_IP:8082/api/v1/functions | jq '.[].status'
-```
-
-### 4.7 Functions ausfuehren
+### 5.6 Functions ausfuehren
 
 Hello -> "Hello, Peter!"
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"hello","payload":{"name":"Peter"}}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d "{\"functionName\":\"hello\",\"payload\":{\"name\":\"Peter\"}}"
 ```
 
 Reverse -> "evitaNduolC"
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"reverse","payload":{"text":"CloudNative"}}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d "{\"functionName\":\"reverse\",\"payload\":{\"text\":\"CloudNative\"}}"
 ```
 
 Sum -> "15"
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"sum","payload":{"numbers":[1,2,3,4,5]}}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d "{\"functionName\":\"sum\",\"payload\":{\"numbers\":[1,2,3,4,5]}}"
 ```
 
 Sum gross -> "550"
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"sum","payload":{"numbers":[10,20,30,40,50,60,70,80,90,100]}}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d "{\"functionName\":\"sum\",\"payload\":{\"numbers\":[10,20,30,40,50,60,70,80,90,100]}}"
 ```
 
-### 4.8 Fehlerszenarien
+### 5.7 Fehlerszenarien
 
-Function existiert nicht
+Function existiert nicht:
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"gibt-es-nicht","payload":{}}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d "{\"functionName\":\"gibt-es-nicht\",\"payload\":{}}"
 ```
 
-Doppelter Name
+Doppelter Name:
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"hello","runtime":"java17","handler":"test.Test::handle","memoryMb":256,"timeoutSeconds":30}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d "{\"name\":\"hello\",\"runtime\":\"java17\",\"handler\":\"test.Test::handle\",\"memoryMb\":256,\"timeoutSeconds\":30}"
 ```
 
-Ungueltiger Handler
+Ungueltiger Handler:
 
-```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"bad","runtime":"java17","handler":"InvalidHandler","memoryMb":256,"timeoutSeconds":30}' | jq
+```
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d "{\"name\":\"bad\",\"runtime\":\"java17\",\"handler\":\"InvalidHandler\",\"memoryMb\":256,\"timeoutSeconds\":30}"
 ```
 
-### 4.9 Function loeschen
+### 5.8 Functions loeschen
 
-```bash
-curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/hello | jq
-curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/reverse | jq
-curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/sum | jq
+```
+curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/hello
+```
 
-# Pruefen ob leer
-curl -s http://EXTERNAL_IP:8082/api/v1/functions | jq
+```
+curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/reverse
+```
+
+```
+curl -s -X DELETE http://EXTERNAL_IP:8082/api/v1/functions/name/sum
+```
+
+Pruefen ob leer:
+
+```
+curl -s http://EXTERNAL_IP:8082/api/v1/functions
 ```
 
 ---
 
-## Teil 5: CI/CD mit GitHub Actions
+## Teil 6: Web-Consolen
+
+### MinIO Console (Object Storage)
+
+Port-Forward starten (laeuft im Vordergrund, eigenes CMD-Fenster oeffnen):
+
+```
+kubectl port-forward svc/minio 9001:9001 -n serverless
+```
+
+Dann im Browser: http://localhost:9001
+
+| Feld | Wert |
+|------|------|
+| Username | `minioadmin` |
+| Password | `minioadmin` |
+
+> Hier sichtbar: `functions` Bucket mit den hochgeladenen JARs
+
+### RabbitMQ Console (Message Queue)
+
+Port-Forward starten (eigenes CMD-Fenster):
+
+```
+kubectl port-forward svc/rabbitmq 15672:15672 -n serverless
+```
+
+Dann im Browser: http://localhost:15672
+
+| Feld | Wert |
+|------|------|
+| Username | `guest` |
+| Password | `guest` |
+
+### Swagger UI (API-Dokumentation)
+
+Direkt im Browser (keine Port-Forward noetig):
+
+```
+http://EXTERNAL_IP:8082/swagger-ui.html
+```
+
+---
+
+## Teil 7: CI/CD mit GitHub Actions
 
 Die Pipeline hat 5 Stages:
 
@@ -320,19 +499,19 @@ Repository Settings > Secrets and variables > Actions:
 
 ### Service Account erstellen
 
-```bash
+```
 gcloud iam service-accounts create github-deploy --display-name="GitHub Actions Deploy"
 ```
 
-```bash
+```
 gcloud projects add-iam-policy-binding serverless-function-runner --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" --role="roles/container.developer"
 ```
 
-```bash
+```
 gcloud projects add-iam-policy-binding serverless-function-runner --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" --role="roles/artifactregistry.writer"
 ```
 
-```bash
+```
 gcloud iam service-accounts keys create key.json --iam-account=github-deploy@serverless-function-runner.iam.gserviceaccount.com
 ```
 
@@ -340,9 +519,15 @@ Den Inhalt von `key.json` als `GCP_SA_KEY` Secret einfuegen, dann `key.json` loe
 
 ### Deployment ausloesen
 
-```bash
+```
 git add .
+```
+
+```
 git commit -m "Update"
+```
+
+```
 git push origin main
 ```
 
@@ -350,106 +535,31 @@ Pipeline verfolgen: https://github.com/CC-X5/Serverless-Function-Runner/actions
 
 ---
 
-## Teil 6: Google Cloud Console & Praesentations-Links
+## Teil 8: Logs und Debugging
 
-### Was zeigen bei der Praesentation?
-
-Empfohlene Reihenfolge fuer die Live-Demo:
-
-#### 1. Cluster & Infrastruktur zeigen
-
-**GKE Cluster (Nodes laufen)**
-https://console.cloud.google.com/kubernetes/clusters/details/europe-west3/serverless-cluster/details?project=serverless-function-runner
-
-> Hier zeigen: 3 Nodes, Machine Type, Region, Kubernetes Version
-
-**GKE Nodes**
-https://console.cloud.google.com/kubernetes/clusters/details/europe-west3/serverless-cluster/nodes?project=serverless-function-runner
-
-> Hier zeigen: CPU/Memory Auslastung der Nodes
-
-#### 2. Workloads & Pods zeigen
-
-**Alle Workloads (Deployments)**
-https://console.cloud.google.com/kubernetes/workload/overview?project=serverless-function-runner
-
-> Hier zeigen: 6 Deployments (3 Infra + 3 Services), alle gruen/OK
-
-**Pod Details**
-https://console.cloud.google.com/kubernetes/workload/overview?project=serverless-function-runner&pageState=(%22savedViews%22:(%22n%22:%5B%22serverless%22%5D))
-
-> Hier zeigen: Pod Status, Restarts, Container (executor hat 2: app + dind)
-
-#### 3. CI/CD Pipeline zeigen
-
-**GitHub Actions (alle Stages)**
-https://github.com/CC-X5/Serverless-Function-Runner/actions
-
-> Hier zeigen: 5 Stages, Build -> Test -> Docker -> Integration -> Deploy
-
-**Cloud Build (Image Builds)**
-https://console.cloud.google.com/cloud-build/builds?project=serverless-function-runner
-
-> Hier zeigen: Build History, Build Dauer, Logs
-
-#### 4. Docker Images zeigen
-
-**Artifact Registry (gepushte Images)**
-https://console.cloud.google.com/artifacts/docker/serverless-function-runner/europe-west3/serverless-runner?project=serverless-function-runner
-
-> Hier zeigen: 3 Images (registry, executor, gateway), Tags, Image Size
-
-#### 5. Live API Demo im Terminal
-
-```bash
-# Status der Pods
+```
 kubectl get pods -n serverless
-
-# Services mit External IP
-kubectl get svc -n serverless
-
-# Health Check
-curl -s http://EXTERNAL_IP:8082/actuator/health | jq
-
-# Function registrieren, JAR hochladen, ausfuehren (siehe Teil 4)
 ```
 
-> Hier zeigen: Kompletter Flow von Function-Erstellung bis Ausfuehrung
-
-#### 6. Object Storage zeigen
-
-**MinIO Console** (vorher Port-Forward starten):
-```bash
-kubectl port-forward svc/minio 9001:9001 -n serverless
 ```
-http://localhost:9001 (User: `minioadmin` / Passwort: `minioadmin`)
-
-> Hier zeigen: functions Bucket, hochgeladene JARs, Ordnerstruktur
-
-#### 7. Logs zeigen
-
-```bash
-# Executor Logs waehrend Function-Ausfuehrung
-kubectl logs -l app=executor-service -n serverless -c executor-service --tail=20
+kubectl logs -l app=registry-service -n serverless --tail=30
 ```
 
-> Hier zeigen: Wie der Executor einen Docker-Container startet und das Ergebnis zurueckgibt
-
-#### 8. Automatisches Deployment zeigen (optional)
-
-Kleine Aenderung committen und pushen, dann in GitHub Actions zeigen wie die Pipeline automatisch deployed:
-
-```bash
-git add .
-git commit -m "Demo commit"
-git push origin main
+```
+kubectl logs -l app=executor-service -n serverless -c executor-service --tail=30
 ```
 
-> Hier zeigen: Pipeline startet automatisch, alle 5 Stages laufen durch
+```
+kubectl logs -l app=gateway-service -n serverless --tail=30
+```
+
+```
+kubectl describe pod -l app=registry-service -n serverless
+```
 
 ---
 
-### Alle Console Links auf einen Blick
+## Teil 9: Google Cloud Console Links
 
 | Was | Link |
 |-----|------|
@@ -462,46 +572,27 @@ git push origin main
 | Billing | https://console.cloud.google.com/billing?project=serverless-function-runner |
 | GitHub Actions | https://github.com/CC-X5/Serverless-Function-Runner/actions |
 | GitHub Repo | https://github.com/CC-X5/Serverless-Function-Runner |
-| MinIO Console | http://localhost:9001 (nach port-forward) |
 
 ---
 
-## Teil 7: Logs und Debugging
+## Teil 10: Shutdown
 
-```bash
-# Pod-Status
-kubectl get pods -n serverless
+Nur die App stoppen (Cluster bleibt):
 
-# Logs eines Services
-kubectl logs -l app=registry-service -n serverless --tail=30
-kubectl logs -l app=executor-service -n serverless -c executor-service --tail=30
-kubectl logs -l app=gateway-service -n serverless --tail=30
-
-# Pod beschreiben (bei Problemen)
-kubectl describe pod -l app=registry-service -n serverless
 ```
-
----
-
-## Teil 8: Shutdown
-
-### Nur die App stoppen (Cluster bleibt)
-
-```bash
 kubectl delete namespace serverless
 ```
 
-### Cluster loeschen (spart Kosten)
+Cluster loeschen (spart Kosten):
 
-```bash
+```
 gcloud container clusters delete serverless-cluster --region europe-west3 --quiet
 ```
 
-### Alles loeschen (Projekt weg)
+Alles loeschen (Projekt weg):
 
-```bash
+```
 gcloud projects delete serverless-function-runner --quiet
 ```
 
-> Nach der Praesentation mindestens den Cluster loeschen!
-> 3 Nodes e2-standard-2 erzeugen laufende Kosten.
+> Nach der Praesentation mindestens den Cluster loeschen! 3 Nodes e2-standard-2 erzeugen laufende Kosten.
