@@ -66,20 +66,13 @@ gcloud services enable container.googleapis.com artifactregistry.googleapis.com 
 ### 1.5 Artifact Registry erstellen
 
 ```bash
-gcloud artifacts repositories create serverless-runner \
-  --repository-format=docker \
-  --location=europe-west3
+gcloud artifacts repositories create serverless-runner --repository-format=docker --location=europe-west3
 ```
 
 ### 1.6 GKE Cluster erstellen
 
 ```bash
-gcloud container clusters create serverless-cluster \
-  --region europe-west3 \
-  --num-nodes 1 \
-  --machine-type e2-standard-2 \
-  --disk-size 30 \
-  --enable-ip-alias
+gcloud container clusters create serverless-cluster --region europe-west3 --num-nodes 1 --machine-type e2-standard-2 --disk-size 30 --enable-ip-alias
 ```
 
 > GKE Standard (nicht Autopilot) ist noetig, da der Executor-Service einen privilegierten DinD-Container benoetigt.
@@ -210,17 +203,15 @@ curl -s http://EXTERNAL_IP:8082/actuator/health | jq
 ### 4.3 Functions registrieren
 
 ```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{"name":"hello","runtime":"java17","handler":"hskl.cn.serverless.function.HelloFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Begruessung"}' | jq
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"hello","runtime":"java17","handler":"hskl.cn.serverless.function.HelloFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Begruessung"}' | jq
+```
 
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{"name":"reverse","runtime":"java17","handler":"hskl.cn.serverless.function.ReverseFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"String umkehren"}' | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"reverse","runtime":"java17","handler":"hskl.cn.serverless.function.ReverseFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"String umkehren"}' | jq
+```
 
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{"name":"sum","runtime":"java17","handler":"hskl.cn.serverless.function.SumFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Zahlen summieren"}' | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"sum","runtime":"java17","handler":"hskl.cn.serverless.function.SumFunction::handle","memoryMb":256,"timeoutSeconds":30,"description":"Zahlen summieren"}' | jq
 ```
 
 ### 4.4 Alle Functions auflisten
@@ -234,14 +225,15 @@ curl -s http://EXTERNAL_IP:8082/api/v1/functions | jq
 Aus dem `serverless/` Verzeichnis:
 
 ```bash
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/hello/upload \
-  -F "file=@test-functions/jars/hello-function.jar" | jq
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/hello/upload -F "file=@test-functions/jars/hello-function.jar" | jq
+```
 
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/reverse/upload \
-  -F "file=@test-functions/jars/reverse-function.jar" | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/reverse/upload -F "file=@test-functions/jars/reverse-function.jar" | jq
+```
 
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/sum/upload \
-  -F "file=@test-functions/jars/sum-function.jar" | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions/name/sum/upload -F "file=@test-functions/jars/sum-function.jar" | jq
 ```
 
 ### 4.6 Status pruefen (alle sollten READY sein)
@@ -252,45 +244,48 @@ curl -s http://EXTERNAL_IP:8082/api/v1/functions | jq '.[].status'
 
 ### 4.7 Functions ausfuehren
 
+Hello -> "Hello, Peter!"
+
 ```bash
-# Hello -> "Hello, Peter!"
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute \
-  -H "Content-Type: application/json" \
-  -d '{"functionName":"hello","payload":{"name":"Peter"}}' | jq
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"hello","payload":{"name":"Peter"}}' | jq
+```
 
-# Reverse -> "evitaNduolC"
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute \
-  -H "Content-Type: application/json" \
-  -d '{"functionName":"reverse","payload":{"text":"CloudNative"}}' | jq
+Reverse -> "evitaNduolC"
 
-# Sum -> "15"
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute \
-  -H "Content-Type: application/json" \
-  -d '{"functionName":"sum","payload":{"numbers":[1,2,3,4,5]}}' | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"reverse","payload":{"text":"CloudNative"}}' | jq
+```
 
-# Sum gross -> "550"
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute \
-  -H "Content-Type: application/json" \
-  -d '{"functionName":"sum","payload":{"numbers":[10,20,30,40,50,60,70,80,90,100]}}' | jq
+Sum -> "15"
+
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"sum","payload":{"numbers":[1,2,3,4,5]}}' | jq
+```
+
+Sum gross -> "550"
+
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"sum","payload":{"numbers":[10,20,30,40,50,60,70,80,90,100]}}' | jq
 ```
 
 ### 4.8 Fehlerszenarien
 
+Function existiert nicht
+
 ```bash
-# Function existiert nicht
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute \
-  -H "Content-Type: application/json" \
-  -d '{"functionName":"gibt-es-nicht","payload":{}}' | jq
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/execute -H "Content-Type: application/json" -d '{"functionName":"gibt-es-nicht","payload":{}}' | jq
+```
 
-# Doppelter Name
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{"name":"hello","runtime":"java17","handler":"test.Test::handle","memoryMb":256,"timeoutSeconds":30}' | jq
+Doppelter Name
 
-# Ungueltiger Handler
-curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions \
-  -H "Content-Type: application/json" \
-  -d '{"name":"bad","runtime":"java17","handler":"InvalidHandler","memoryMb":256,"timeoutSeconds":30}' | jq
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"hello","runtime":"java17","handler":"test.Test::handle","memoryMb":256,"timeoutSeconds":30}' | jq
+```
+
+Ungueltiger Handler
+
+```bash
+curl -s -X POST http://EXTERNAL_IP:8082/api/v1/functions -H "Content-Type: application/json" -d '{"name":"bad","runtime":"java17","handler":"InvalidHandler","memoryMb":256,"timeoutSeconds":30}' | jq
 ```
 
 ### 4.9 Function loeschen
@@ -326,19 +321,19 @@ Repository Settings > Secrets and variables > Actions:
 ### Service Account erstellen
 
 ```bash
-gcloud iam service-accounts create github-deploy \
-  --display-name="GitHub Actions Deploy"
+gcloud iam service-accounts create github-deploy --display-name="GitHub Actions Deploy"
+```
 
-gcloud projects add-iam-policy-binding serverless-function-runner \
-  --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" \
-  --role="roles/container.developer"
+```bash
+gcloud projects add-iam-policy-binding serverless-function-runner --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" --role="roles/container.developer"
+```
 
-gcloud projects add-iam-policy-binding serverless-function-runner \
-  --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" \
-  --role="roles/artifactregistry.writer"
+```bash
+gcloud projects add-iam-policy-binding serverless-function-runner --member="serviceAccount:github-deploy@serverless-function-runner.iam.gserviceaccount.com" --role="roles/artifactregistry.writer"
+```
 
-gcloud iam service-accounts keys create key.json \
-  --iam-account=github-deploy@serverless-function-runner.iam.gserviceaccount.com
+```bash
+gcloud iam service-accounts keys create key.json --iam-account=github-deploy@serverless-function-runner.iam.gserviceaccount.com
 ```
 
 Den Inhalt von `key.json` als `GCP_SA_KEY` Secret einfuegen, dann `key.json` loeschen.
