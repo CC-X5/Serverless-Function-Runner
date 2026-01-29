@@ -268,7 +268,8 @@ kubectl get svc -n serverless
 | Seite | URL | Zugang |
 |-------|-----|--------|
 | Health Check | http://EXTERNAL_IP:8082/actuator/health | Direkt im Browser |
-| Swagger UI (API-Doku) | http://EXTERNAL_IP:8082/swagger-ui.html | Direkt im Browser |
+| Swagger UI Registry | http://localhost:8080/swagger-ui/index.html | Port-Forward noetig (siehe Teil 6) |
+| Swagger UI Executor | http://localhost:8081/swagger-ui/index.html | Port-Forward noetig (siehe Teil 6) |
 | Functions API | http://EXTERNAL_IP:8082/api/v1/functions | Direkt im Browser |
 | MinIO Console | http://localhost:9001 | Port-Forward noetig (siehe Teil 6) |
 | RabbitMQ Console | http://localhost:15672 | Port-Forward noetig (siehe Teil 6) |
@@ -472,11 +473,51 @@ Dann im Browser: http://localhost:15672
 
 ### Swagger UI (API-Dokumentation)
 
-Direkt im Browser (keine Port-Forward noetig):
+Swagger bietet eine interaktive Web-Oberflaeche, ueber die alle API-Endpoints direkt getestet werden koennen.
+
+**Registry Service** (Function-Verwaltung):
+
+Port-Forward starten (eigenes CMD-Fenster):
 
 ```
-http://EXTERNAL_IP:8082/swagger-ui.html
+kubectl port-forward svc/registry-service 8080:8080 -n serverless
 ```
+
+Dann im Browser: http://localhost:8080/swagger-ui/index.html
+
+Verfuegbare Endpoints:
+
+| Methode | Endpoint | Beschreibung |
+|---------|----------|-------------|
+| `POST` | `/api/v1/functions` | Neue Function registrieren (Name, Runtime, Handler) |
+| `GET` | `/api/v1/functions` | Alle registrierten Functions auflisten |
+| `GET` | `/api/v1/functions/name/{name}` | Eine bestimmte Function abrufen |
+| `POST` | `/api/v1/functions/name/{name}/upload` | JAR-Datei fuer eine Function hochladen |
+| `DELETE` | `/api/v1/functions/name/{name}` | Function loeschen |
+
+> **Hinweis:** Eine Function durchlaeuft zwei Schritte:
+> 1. **Registrieren** (`POST /functions`) -> speichert Metadaten in PostgreSQL (Status: `PENDING`)
+> 2. **JAR hochladen** (`POST /functions/name/.../upload`) -> speichert JAR in MinIO (Status: `READY`)
+>
+> Erst nach dem JAR-Upload ist die Function in MinIO sichtbar und ausfuehrbar.
+
+**Executor Service** (Function-Ausfuehrung):
+
+Port-Forward starten (eigenes CMD-Fenster):
+
+```
+kubectl port-forward svc/executor-service 8081:8081 -n serverless
+```
+
+Dann im Browser: http://localhost:8081/swagger-ui/index.html
+
+Verfuegbare Endpoints:
+
+| Methode | Endpoint | Beschreibung |
+|---------|----------|-------------|
+| `POST` | `/api/v1/execute` | Function ausfuehren (startet Docker-Container im DinD-Sidecar) |
+
+> Der Executor laedt die JAR aus MinIO, startet einen isolierten Docker-Container mit `eclipse-temurin:17-jre-alpine`, fuehrt die Function aus und gibt das Ergebnis zurueck.
 
 ---
 
