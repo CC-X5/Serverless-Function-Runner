@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
         - name: executor-service
-          image: executor-service:latest
-          imagePullPolicy: IfNotPresent
+          image: europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/executor-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8081
           envFrom:
@@ -31,10 +31,7 @@ spec:
             - name: SERVER_PORT
               value: "8081"
             - name: DOCKER_HOST
-              value: "unix:///var/run/docker.sock"
-          volumeMounts:
-            - name: docker-socket
-              mountPath: /var/run/docker.sock
+              value: "tcp://localhost:2375"
           resources:
             requests:
               memory: "512Mi"
@@ -42,25 +39,45 @@ spec:
             limits:
               memory: "1Gi"
               cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 15
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8081
-            initialDelaySeconds: 60
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8081
-            initialDelaySeconds: 30
             periodSeconds: 5
             failureThreshold: 3
+        - name: dind
+          image: docker:dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: dind-storage
+              mountPath: /var/lib/docker
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
       volumes:
-        - name: docker-socket
-          hostPath:
-            path: /var/run/docker.sock
-            type: Socket
+        - name: dind-storage
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

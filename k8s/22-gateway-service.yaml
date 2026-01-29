@@ -18,8 +18,8 @@ spec:
     spec:
       containers:
         - name: gateway-service
-          image: gateway-service:latest
-          imagePullPolicy: IfNotPresent
+          image: europe-west3-docker.pkg.dev/serverless-function-runner/serverless-runner/gateway-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8082
           envFrom:
@@ -35,18 +35,23 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 15
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
               port: 8082
-            initialDelaySeconds: 60
             periodSeconds: 10
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
               port: 8082
-            initialDelaySeconds: 30
             periodSeconds: 5
             failureThreshold: 3
           securityContext:
@@ -65,5 +70,4 @@ spec:
   ports:
     - port: 8082
       targetPort: 8082
-      nodePort: 30082
-  type: NodePort
+  type: LoadBalancer

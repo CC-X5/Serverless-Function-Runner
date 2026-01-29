@@ -10,6 +10,9 @@ env:
   JAVA_VERSION: '17'
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  GCP_REGION: europe-west3
+  GKE_CLUSTER: serverless-cluster
+  GAR_REGISTRY: europe-west3-docker.pkg.dev
 
 jobs:
   # ============================================
@@ -260,42 +263,93 @@ jobs:
           cache-to: type=gha,mode=max
 
   # ============================================
-  # Stage 6: Deploy (placeholder for GCP)
+  # Stage 6: Deploy to GKE
   # ============================================
   deploy:
-    name: Deploy to Cloud
+    name: Deploy to GKE
     runs-on: ubuntu-latest
     needs: docker-push
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: production
 
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Deploy Notification
-        run: |
-          echo "🚀 Deployment triggered for commit: ${{ github.sha }}"
-          echo "Images pushed to ghcr.io"
-          echo ""
-          echo "For Google Cloud Run deployment, configure:"
-          echo "1. Add GCP_PROJECT_ID to repository secrets"
-          echo "2. Add GCP_SA_KEY (Service Account JSON) to repository secrets"
-          echo "3. Uncomment the GCP deployment steps below"
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # Uncomment for actual GCP deployment:
-      # - name: Authenticate to Google Cloud
-      #   uses: google-github-actions/auth@v2
-      #   with:
-      #     credentials_json: ${{ secrets.GCP_SA_KEY }}
-      #
-      # - name: Set up Cloud SDK
-      #   uses: google-github-actions/setup-gcloud@v2
-      #
-      # - name: Deploy to Cloud Run
-      #   run: |
-      #     gcloud run deploy gateway-service \
-      #       --image ${{ env.REGISTRY }}/${{ github.repository_owner }}/gateway-service:latest \
-      #       --platform managed \
-      #       --region europe-west1 \
-      #       --allow-unauthenticated
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GAR_REGISTRY }} --quiet
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Package Application
+        working-directory: serverless
+        run: |
+          chmod +x mvnw
+          ./mvnw package -DskipTests -B
+
+      - name: Build and Push to Artifact Registry
+        working-directory: serverless
+        run: |
+          for SERVICE in registry-service executor-service gateway-service; do
+            IMAGE=${{ env.GAR_REGISTRY }}/${{ secrets.GCP_PROJECT_ID }}/serverless-runner/${SERVICE}
+            docker build -t ${IMAGE}:latest -t ${IMAGE}:${{ github.sha }} -f ${SERVICE}/Dockerfile .
+            docker push ${IMAGE}:latest
+            docker push ${IMAGE}:${{ github.sha }}
+          done
+
+      - name: Get GKE Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GCP_REGION }}
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -f k8s/00-namespace.yaml
+          kubectl apply -f k8s/01-configmap.yaml
+          kubectl apply -f k8s/02-secrets.yaml
+          kubectl apply -f k8s/10-postgres.yaml
+          kubectl apply -f k8s/11-minio.yaml
+          kubectl apply -f k8s/12-rabbitmq.yaml
+          kubectl apply -f k8s/20-registry-service.yaml
+          kubectl apply -f k8s/21-executor-service.yaml
+          kubectl apply -f k8s/22-gateway-service.yaml
+
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment/registry-service -n serverless --timeout=240s
+          kubectl rollout status deployment/executor-service -n serverless --timeout=240s
+          kubectl rollout status deployment/gateway-service -n serverless --timeout=240s
+
+      - name: Show Deployment Status
+        if: always()
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n serverless
+          echo ""
+          echo "=== Services ==="
+          kubectl get svc -n serverless
+          echo ""
+          EXTERNAL_IP=$(kubectl get svc gateway-service -n serverless -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          if [ -n "$EXTERNAL_IP" ]; then
+            echo "Gateway URL: http://${EXTERNAL_IP}:8082"
+          fi

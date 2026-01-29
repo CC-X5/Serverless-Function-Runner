@@ -4,7 +4,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
       - '-f'
       - 'registry-service/Dockerfile'
       - '.'
@@ -14,7 +14,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
       - '-f'
       - 'executor-service/Dockerfile'
       - '.'
@@ -24,15 +24,15 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
+      - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
       - '-f'
       - 'gateway-service/Dockerfile'
       - '.'
 
 images:
-  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
-  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
-  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/registry-service:latest'
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/executor-service:latest'
+  - 'europe-west3-docker.pkg.dev/$PROJECT_ID/serverless-runner/gateway-service:latest'
 
 timeout: 2400s
 options:
